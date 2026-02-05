@@ -1,40 +1,33 @@
-<!-- PROJECT SHIELDS -->
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-
+<!-- Monopoly Polymarket Agent System by metarunelabs.dev -->
+<!-- Forked from Polymarket/agents (MIT License) -->
 
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/polymarket/agents">
+  <a href="https://metarunelabs.dev">
     <img src="docs/images/cli.png" alt="Logo" width="466" height="262">
   </a>
 
-<h3 align="center">Polymarket Agents</h3>
+<h3 align="center">Monopoly Polymarket Agent System</h3>
 
   <p align="center">
     Trade autonomously on Polymarket using AI Agents
     <br />
-    <a href="https://github.com/polymarket/agents"><strong>Explore the docs »</strong></a>
+    <em>by <a href="https://metarunelabs.dev">metarunelabs.dev</a></em>
     <br />
     <br />
-    <a href="https://github.com/polymarket/agents">View Demo</a>
+    <a href="https://github.com/polymarket/agents">Upstream Repo</a>
     ·
-    <a href="https://github.com/polymarket/agents/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
-    ·
-    <a href="https://github.com/polymarket/agents/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://metarunelabs.dev">Metarune Labs</a>
   </p>
 </div>
 
 
-# Polymarket Agents
+# Monopoly Agents
 
-Polymarket Agents is a developer framework and set of utilities for building AI agents for Polymarket.
+Monopoly Polymarket Agent System is a developer framework and set of utilities for building AI trading agents for Polymarket, maintained by [metarunelabs.dev](https://metarunelabs.dev).
 
-This code is free and publicly available under MIT License open source license ([terms of service](#terms-of-service))!
+Based on the open-source [Polymarket Agents](https://github.com/polymarket/agents) project (MIT License). See [terms of service](#terms-of-service).
 
 ## Features
 
@@ -96,8 +89,8 @@ This repo is intended for use with Python 3.9.
 1. Clone the repository
 
    ```
-   git clone https://github.com/{username}/polymarket-agents.git
-   cd polymarket-agents
+   git clone https://github.com/{username}/monopoly-agents.git
+   cd monopoly-agents
    ```
 
 2. Create and activate the virtual environment
@@ -184,9 +177,9 @@ python scripts/python/cli.py run-autonomous-trader
 Or manually:
 
 ```bash
-docker build -t polymarket-agents:latest .
+docker build -t monopoly-agents:latest .
 docker run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. polymarket-agents:latest /bin/bash
+  -e PYTHONPATH=. monopoly-agents:latest /bin/bash
 ```
 
 ### Podman
@@ -194,9 +187,9 @@ docker run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
 Podman works as a drop-in replacement for Docker. See [PODMAN_SETUP.md](PODMAN_SETUP.md) for details.
 
 ```bash
-podman build -t polymarket-agents:latest .
+podman build -t monopoly-agents:latest .
 podman run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. polymarket-agents:latest /bin/bash
+  -e PYTHONPATH=. monopoly-agents:latest /bin/bash
 ```
 
 ## Troubleshooting
@@ -245,6 +238,7 @@ pre-commit install
 
 # Related Repos
 
+- [Polymarket Agents](https://github.com/polymarket/agents): Upstream project this is based on
 - [py-clob-client](https://github.com/Polymarket/py-clob-client): Python client for the Polymarket CLOB
 - [python-order-utils](https://github.com/Polymarket/python-order-utils): Python utilities to generate and sign orders from Polymarket's CLOB
 - [Polymarket CLOB client](https://github.com/Polymarket/clob-client): Typescript client for Polymarket CLOB
@@ -261,23 +255,12 @@ pre-commit install
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for details.
 
+Originally developed by [Polymarket](https://github.com/polymarket/agents). Modified and maintained by [Metarune Labs](https://metarunelabs.dev).
+
 # Contact
 
-For any questions or inquiries, please contact liam@polymarket.com or reach out at www.greenestreet.xyz
+For questions or inquiries, visit [metarunelabs.dev](https://metarunelabs.dev).
 
 # Terms of Service
 
 [Terms of Service](https://polymarket.com/tos) prohibit US persons and persons from certain other jurisdictions from trading on Polymarket (via UI & API and including agents developed by persons in restricted jurisdictions), although data and information is viewable globally.
-
-
-<!-- LINKS -->
-[contributors-shield]: https://img.shields.io/github/contributors/polymarket/agents?style=for-the-badge
-[contributors-url]: https://github.com/polymarket/agents/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/polymarket/agents?style=for-the-badge
-[forks-url]: https://github.com/polymarket/agents/network/members
-[stars-shield]: https://img.shields.io/github/stars/polymarket/agents?style=for-the-badge
-[stars-url]: https://github.com/polymarket/agents/stargazers
-[issues-shield]: https://img.shields.io/github/issues/polymarket/agents?style=for-the-badge
-[issues-url]: https://github.com/polymarket/agents/issues
-[license-shield]: https://img.shields.io/github/license/polymarket/agents?style=for-the-badge
-[license-url]: https://github.com/polymarket/agents/blob/master/LICENSE.md

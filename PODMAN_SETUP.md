@@ -1,4 +1,4 @@
-# Podman Setup Guide
+# Monopoly Agents — Podman Setup Guide
 
 Podman is a drop-in replacement for Docker. All existing Docker scripts work with a simple alias.
 
@@ -30,23 +30,23 @@ alias docker=podman
 ### Option 2: Direct Podman commands
 
 ```bash
-podman build -t polymarket-agents:latest .
+podman build -t monopoly-agents:latest .
 
 # Interactive dev
 podman run -it \
   -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. polymarket-agents:latest /bin/bash
+  -e PYTHONPATH=. monopoly-agents:latest /bin/bash
 
 # Run CLI command
 podman run --rm \
   -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. polymarket-agents:latest \
+  -e PYTHONPATH=. monopoly-agents:latest \
   python scripts/python/cli.py get-all-markets --limit 5
 
 # Run API server
 podman run -it -p 8000:8000 \
   -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. polymarket-agents:latest \
+  -e PYTHONPATH=. monopoly-agents:latest \
   python scripts/python/server.py
 ```
 

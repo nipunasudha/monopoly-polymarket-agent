@@ -2,7 +2,7 @@
 
 ### Welcome and Thanks!
 
-> First off, thank you for considering contributing to our Decentralized AI Agent for Polymarket! It's contributors like you that help make this project a powerful tool for prediction markets.
+> First off, thank you for considering contributing to Monopoly Agents by metarunelabs.dev! It's contributors like you that help make this project a powerful tool for prediction markets.
 
 ### Why Follow These Guidelines?
 
@@ -18,7 +18,7 @@ We value all kinds of contributions! Whether it’s improving our documentation,
 
 To streamline the process, please avoid these types of contributions:
 
-> Please do not use the issue tracker for general support questions. For help, consider joining our the Polymarket Discord or referring to the [Polymarket API documentation](https://polymarket.com/docs).
+> Please do not use the issue tracker for general support questions. For help, visit [metarunelabs.dev](https://metarunelabs.dev) or refer to the [Polymarket API documentation](https://polymarket.com/docs).
 
 # Ground Rules
 
@@ -84,7 +84,7 @@ For minor fixes, such as typos or documentation improvements, you can:
 
 If you discover a security issue, please report it privately:
 
-> If you find a security vulnerability, do NOT open an issue. Instead, email Polymarket directly.
+> If you find a security vulnerability, do NOT open an issue. Instead, report it privately via [metarunelabs.dev](https://metarunelabs.dev).
 
 ### Filing a Bug Report
 
@@ -103,7 +103,7 @@ When reporting a bug, please provide the following details:
 
 Before suggesting a feature, understand our project goals:
 
-> Our AI agent aims to leverage decentralized mechanisms to provide accurate predictions within Polymarket's markets. We are focused on enhancing market analysis and prediction accuracy.
+> Monopoly Agents aims to leverage AI and decentralized mechanisms to provide accurate predictions within Polymarket's markets. We are focused on enhancing market analysis and prediction accuracy.
 
 ### Suggesting a Feature
 
