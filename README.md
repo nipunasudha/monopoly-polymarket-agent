@@ -30,7 +30,6 @@
 </div>
 
 
-<!-- CONTENT -->
 # Polymarket Agents
 
 Polymarket Agents is a developer framework and set of utilities for building AI agents for Polymarket.
@@ -43,11 +42,56 @@ This code is free and publicly available under MIT License open source license (
 - AI agent utilities for prediction markets
 - Local and remote RAG (Retrieval-Augmented Generation) support
 - Data sourcing from betting services, news providers, and web search
-- Comphrehensive LLM tools for prompt engineering
+- Comprehensive LLM tools for prompt engineering
 
-# Getting started
+## Architecture
 
-This repo is inteded for use with Python 3.9
+```
+┌─────────────────────────────────────────────────────┐
+│              USER INTERFACES                         │
+├──────────────────────┬──────────────────────────────┤
+│  CLI (Typer)         │  REST API (FastAPI)           │
+│  9 Commands          │  Health checks, Market data   │
+└──────────────────────┼──────────────────────────────┘
+                       │
+┌──────────────────────┴──────────────────────────────┐
+│           AGENT EXECUTION LAYER (Executor)           │
+├─────────────────────────────────────────────────────┤
+│  - LLM Coordination (OpenAI)      - RAG (Chroma)    │
+│  - Market Filtering                - Event Analysis │
+│  - Trade Calculation                                 │
+└──────────────────┬──────────────────────────────────┘
+                   │
+       ┌───────────┼───────────┐
+       │           │           │
+   ┌───▼──┐  ┌───▼────┐  ┌───▼────┐
+   │Gamma │  │Data    │  │Trading │
+   │API   │  │Sources │  │CLOB    │
+   └──────┘  └────────┘  └────────┘
+       │           │           │
+   Markets,    News, Web    Polygon
+   Events      Search        Network
+```
+
+## Key Files
+
+| Purpose | File Path |
+|---------|-----------|
+| CLI Entry Point | `scripts/python/cli.py` |
+| REST API Server | `scripts/python/server.py` |
+| Autonomous Trading | `agents/application/trade.py` |
+| LLM Executor | `agents/application/executor.py` |
+| Gamma API Client | `agents/polymarket/gamma.py` |
+| Trading CLOB Client | `agents/polymarket/polymarket.py` |
+| Vector RAG Database | `agents/connectors/chroma.py` |
+| News Connector | `agents/connectors/news.py` |
+| Web Search | `agents/connectors/search.py` |
+| Data Models | `agents/utils/objects.py` |
+| Tests | `tests/test.py` |
+
+# Getting Started
+
+This repo is intended for use with Python 3.9.
 
 1. Clone the repository
 
@@ -56,126 +100,148 @@ This repo is inteded for use with Python 3.9
    cd polymarket-agents
    ```
 
-2. Create the virtual environment
+2. Create and activate the virtual environment
 
    ```
    virtualenv --python=python3.9 .venv
+   source .venv/bin/activate   # macOS/Linux
+   .venv\Scripts\activate      # Windows
    ```
 
-3. Activate the virtual environment
-
-   - On Windows:
-
-   ```
-   .venv\Scripts\activate
-   ```
-
-   - On macOS and Linux:
-
-   ```
-   source .venv/bin/activate
-   ```
-
-4. Install the required dependencies:
+3. Install the required dependencies:
 
    ```
    pip install -r requirements.txt
    ```
 
-5. Set up your environment variables:
-
-   - Create a `.env` file in the project root directory
+4. Set up your environment variables:
 
    ```
    cp .env.example .env
    ```
 
-   - Add the following environment variables:
+   Edit `.env` and add your keys:
 
    ```
-   POLYGON_WALLET_PRIVATE_KEY=""
-   OPENAI_API_KEY=""
+   POLYGON_WALLET_PRIVATE_KEY=""   # Required: Polygon wallet
+   OPENAI_API_KEY=""               # Required: OpenAI API key
+   TAVILY_API_KEY=""               # Optional: web search
+   NEWSAPI_API_KEY=""              # Optional: news data
    ```
 
-6. Load your wallet with USDC.
-
-7. Try the command line interface...
-
-   ```
-   python scripts/python/cli.py
-   ```
-
-   Or just go trade! 
-
-   ```
-   python agents/application/trade.py
-   ```
-
-8. Note: If running the command outside of docker, please set the following env var:
+5. Set the Python path (required when running outside Docker):
 
    ```
    export PYTHONPATH="."
    ```
 
-   If running with docker is preferred, we provide the following scripts:
+6. Load your wallet with USDC.
+
+7. Try the CLI or go trade:
 
    ```
-   ./scripts/bash/build-docker.sh
-   ./scripts/bash/run-docker-dev.sh
+   python scripts/python/cli.py --help
+   python agents/application/trade.py
    ```
 
-## Architecture
+## CLI Commands
 
-The Polymarket Agents architecture features modular components that can be maintained and extended by individual community members.
+### Market Discovery
+```bash
+python scripts/python/cli.py get-all-markets --limit 5 --sort-by spread
+python scripts/python/cli.py get-all-events --limit 3
+```
 
-### APIs
+### Data & Research
+```bash
+python scripts/python/cli.py get-relevant-news "bitcoin" "ethereum"
+python scripts/python/cli.py create-local-markets-rag ./market_data
+python scripts/python/cli.py query-local-markets-rag ./vector_db "best crypto bet"
+```
 
-Polymarket Agents connectors standardize data sources and order types.
+### AI Forecasting
+```bash
+python scripts/python/cli.py ask-superforecaster "Bitcoin ETF" "Will pass?" "yes"
+python scripts/python/cli.py ask-llm "What's your opinion on AI?"
+python scripts/python/cli.py ask-polymarket-llm "Best market opportunities today?"
+```
 
-- `Chroma.py`: chroma DB for vectorizing news sources and other API data. Developers are able to add their own vector database implementations.
+### Trading
+```bash
+python scripts/python/cli.py create-market
+python scripts/python/cli.py run-autonomous-trader
+```
 
-- `Gamma.py`: defines `GammaMarketClient` class, which interfaces with the Polymarket Gamma API to fetch and parse market and event metadata. Methods to retrieve current and tradable markets, as well as defined information on specific markets and events.
+## Container Setup
 
-- `Polymarket.py`: defines a Polymarket class that interacts with the Polymarket API to retrieve and manage market and event data, and to execute orders on the Polymarket DEX. It includes methods for API key initialization, market and event data retrieval, and trade execution. The file also provides utility functions for building and signing orders, as well as examples for testing API interactions.
+### Docker
 
-- `Objects.py`: data models using Pydantic; representations for trades, markets, events, and related entities.
+```bash
+./scripts/bash/build-docker.sh
+./scripts/bash/run-docker-dev.sh
+```
 
-### Scripts
+Or manually:
 
-Files for managing your local environment, server set-up to run the application remotely, and cli for end-user commands.
+```bash
+docker build -t polymarket-agents:latest .
+docker run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
+  -e PYTHONPATH=. polymarket-agents:latest /bin/bash
+```
 
-`cli.py` is the primary user interface for the repo. Users can run various commands to interact with the Polymarket API, retrieve relevant news articles, query local data, send data/prompts to LLMs, and execute trades in Polymarkets.
+### Podman
 
-Commands should follow this format:
+Podman works as a drop-in replacement for Docker. See [PODMAN_SETUP.md](PODMAN_SETUP.md) for details.
 
-`python scripts/python/cli.py command_name [attribute value] [attribute value]`
+```bash
+podman build -t polymarket-agents:latest .
+podman run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
+  -e PYTHONPATH=. polymarket-agents:latest /bin/bash
+```
 
-Example:
+## Troubleshooting
 
-`get-all-markets`
-Retrieve and display a list of markets from Polymarket, sorted by volume.
+**"Module not found" errors** — Ensure `PYTHONPATH` is set:
+```bash
+export PYTHONPATH="."
+```
 
-   ```
-   python scripts/python/cli.py get-all-markets --limit <LIMIT> --sort-by <SORT_BY>
-   ```
+**"Private key is needed" error** — Add a key to `.env` (use a test key for read-only testing):
+```bash
+POLYGON_WALLET_PRIVATE_KEY="0x0000000000000000000000000000000000000000000000000000000000000001"
+```
 
-- limit: The number of markets to retrieve (default: 5).
-- sort_by: The sorting criterion, either volume (default) or another valid attribute.
+**"OpenAI API error"** — Ensure `OPENAI_API_KEY` is set in `.env` with a valid key.
+
+**Chromadb collection errors** — Reset the RAG database:
+```bash
+rm -rf .chroma_db/
+python scripts/python/cli.py create-local-markets-rag ./market_data
+```
+
+## APIs
+
+- `Chroma.py`: Chroma DB for vectorizing news sources and other API data. Developers can add their own vector database implementations.
+
+- `Gamma.py`: `GammaMarketClient` class interfacing with the Polymarket Gamma API to fetch and parse market and event metadata.
+
+- `Polymarket.py`: Interacts with the Polymarket API to retrieve and manage market/event data and execute orders on the Polymarket DEX.
+
+- `Objects.py`: Pydantic data models for trades, markets, events, and related entities.
 
 # Contributing
 
-If you would like to contribute to this project, please follow these steps:
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 1. Fork the repository.
 2. Create a new branch.
 3. Make your changes.
 4. Submit a pull request.
 
-Please run pre-commit hooks before making contributions. To initialize them:
-
-   ```
-   pre-commit install
-   ```
+Please run pre-commit hooks before contributing:
+```
+pre-commit install
+```
 
 # Related Repos
 
@@ -183,9 +249,9 @@ Please run pre-commit hooks before making contributions. To initialize them:
 - [python-order-utils](https://github.com/Polymarket/python-order-utils): Python utilities to generate and sign orders from Polymarket's CLOB
 - [Polymarket CLOB client](https://github.com/Polymarket/clob-client): Typescript client for Polymarket CLOB
 - [Langchain](https://github.com/langchain-ai/langchain): Utility for building context-aware reasoning applications
-- [Chroma](https://docs.trychroma.com/getting-started): Chroma is an AI-native open-source vector database
+- [Chroma](https://docs.trychroma.com/getting-started): AI-native open-source vector database
 
-# Prediction markets reading
+# Prediction Markets Reading
 
 - Prediction Markets: Bottlenecks and the Next Major Unlocks, Mikey 0x: https://mirror.xyz/1kx.eth/jnQhA56Kx9p3RODKiGzqzHGGEODpbskivUUNdd7hwh0
 - The promise and challenges of crypto + AI applications, Vitalik Buterin: https://vitalik.eth.limo/general/2024/01/30/cryptoai.html
@@ -193,13 +259,11 @@ Please run pre-commit hooks before making contributions. To initialize them:
 
 # License
 
-This project is licensed under the MIT License. See the [LICENSE](https://github.com/Polymarket/agents/blob/main/LICENSE.md) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for details.
 
 # Contact
 
 For any questions or inquiries, please contact liam@polymarket.com or reach out at www.greenestreet.xyz
-
-Enjoy using the CLI application! If you encounter any issues, feel free to open an issue on the repository.
 
 # Terms of Service
 
