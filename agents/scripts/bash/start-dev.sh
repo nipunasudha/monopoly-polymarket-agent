@@ -1,2 +1,2 @@
-python setup.py
-fastapi dev server.py
+uv run python setup.py
+uv run fastapi dev server.py
