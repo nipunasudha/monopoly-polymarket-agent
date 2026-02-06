@@ -1,4 +1,5 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
+import os
 from agents.application.executor import Executor as Agent
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.polymarket.polymarket import Polymarket
@@ -8,6 +9,7 @@ import shutil
 
 class Trader:
     def __init__(self):
+        self.dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
         self.polymarket = Polymarket()
         self.gamma = Gamma()
         self.agent = Agent()
@@ -57,9 +59,20 @@ class Trader:
             print(f"5. CALCULATED TRADE {best_trade}")
 
             amount = self.agent.format_trade_prompt_for_execution(best_trade)
-            # Please refer to TOS before uncommenting: polymarket.com/tos
-            # trade = self.polymarket.execute_market_order(market, amount)
-            # print(f"6. TRADED {trade}")
+
+            if self.dry_run:
+                print()
+                print("=" * 60)
+                print("[DRY RUN] Trade recommendation (not executed)")
+                print(f"  Amount: ${amount:.2f} USDC")
+                print(f"  Details: {best_trade}")
+                print("=" * 60)
+                print()
+                print("Set TRADING_MODE=live in .env to execute trades.")
+            else:
+                # Please refer to TOS before enabling: polymarket.com/tos
+                trade = self.polymarket.execute_market_order(market, amount)
+                print(f"6. TRADED {trade}")
 
         except Exception as e:
             print(f"Error {e} \n \n Retrying")

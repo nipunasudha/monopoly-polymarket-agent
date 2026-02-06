@@ -35,9 +35,15 @@ load_dotenv()
 
 class Polymarket:
     def __init__(self) -> None:
+        self.dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+
         self.gamma_url = "https://gamma-api.polymarket.com"
         self.gamma_markets_endpoint = self.gamma_url + "/markets"
         self.gamma_events_endpoint = self.gamma_url + "/events"
+
+        if self.dry_run:
+            print("[DRY RUN] Polymarket initialized in read-only mode")
+            return
 
         self.clob_url = "https://clob.polymarket.com"
         self.clob_auth_endpoint = self.clob_url + "/auth/api-key"
@@ -286,7 +292,14 @@ class Polymarket:
         all_events = self.get_all_events()
         return self.filter_events_for_trading(all_events)
 
+    def _require_live(self, method_name: str) -> None:
+        if self.dry_run:
+            raise RuntimeError(
+                f"Polymarket.{method_name}() requires TRADING_MODE=live"
+            )
+
     def get_sampling_simplified_markets(self) -> "list[SimpleEvent]":
+        self._require_live("get_sampling_simplified_markets")
         markets = []
         raw_sampling_simplified_markets = self.client.get_sampling_simplified_markets()
         for raw_market in raw_sampling_simplified_markets["data"]:
@@ -296,9 +309,11 @@ class Polymarket:
         return markets
 
     def get_orderbook(self, token_id: str) -> OrderBookSummary:
+        self._require_live("get_orderbook")
         return self.client.get_order_book(token_id)
 
     def get_orderbook_price(self, token_id: str) -> float:
+        self._require_live("get_orderbook_price")
         return float(self.client.get_price(token_id))
 
     def get_address_for_private_key(self):
@@ -313,6 +328,7 @@ class Polymarket:
         side: str = "BUY",
         expiration: str = "0",  # timestamp after which order expires
     ):
+        self._require_live("build_order")
         signer = Signer(self.private_key)
         builder = OrderBuilder(self.exchange_address, self.chain_id, signer)
 
@@ -334,11 +350,13 @@ class Polymarket:
         return order
 
     def execute_order(self, price, size, side, token_id) -> str:
+        self._require_live("execute_order")
         return self.client.create_and_post_order(
             OrderArgs(price=price, size=size, side=side, token_id=token_id)
         )
 
     def execute_market_order(self, market, amount) -> str:
+        self._require_live("execute_market_order")
         token_id = ast.literal_eval(market[0].dict()["metadata"]["clob_token_ids"])[1]
         order_args = MarketOrderArgs(
             token_id=token_id,
@@ -352,6 +370,10 @@ class Polymarket:
         return resp
 
     def get_usdc_balance(self) -> float:
+        if self.dry_run:
+            balance = float(os.getenv("SIMULATED_USDC_BALANCE", "1000.0"))
+            print(f"[DRY RUN] Using simulated USDC balance: ${balance:.2f}")
+            return balance
         balance_res = self.usdc.functions.balanceOf(
             self.get_address_for_private_key()
         ).call()
