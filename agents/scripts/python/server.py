@@ -12,6 +12,7 @@ import logging
 from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
 from agents.connectors.events import get_broadcaster
+from agents.polymarket.polymarket import Polymarket
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +41,9 @@ templates = Jinja2Templates(env=jinja_env)
 # It's ignored by git (see .gitignore)
 db = Database()  # Default: sqlite:///monopoly_agents.db
 db.create_tables()
+
+# Initialize Polymarket client
+poly = Polymarket()
 
 # Initialize agent runner
 agent_runner = get_agent_runner()
@@ -136,6 +140,24 @@ async def dashboard_home(request: Request):
     # Get latest portfolio snapshot
     portfolio = db.get_latest_portfolio_snapshot()
     
+    # If no portfolio data, fetch from Polymarket
+    if not portfolio:
+        try:
+            balance = poly.get_usdc_balance()
+            portfolio_data = {
+                "balance": balance,
+                "total_value": balance,
+                "open_positions": 0,
+                "total_pnl": 0.0,
+                "win_rate": 0.0,
+                "total_trades": 0,
+            }
+            portfolio = db.save_portfolio_snapshot(portfolio_data)
+            logger.info(f"Synced Polymarket balance: ${balance:.2f}")
+        except Exception as e:
+            logger.warning(f"Could not fetch Polymarket balance: {e}")
+            portfolio = None
+    
     # Get portfolio history for chart
     history = db.get_portfolio_history(limit=30)
     
@@ -153,8 +175,27 @@ async def dashboard_home(request: Request):
 @app.get("/markets", response_class=HTMLResponse)
 async def dashboard_markets(request: Request):
     """Markets scanner dashboard."""
+    # Fetch real markets from Polymarket
+    try:
+        markets = poly.get_all_markets()
+        # Limit to first 20 for display
+        markets_data = []
+        for market in markets[:20]:
+            markets_data.append({
+                "id": market.id,
+                "question": market.question,
+                "end": market.end,
+                "active": market.active,
+                "outcomes": market.outcomes,
+                "outcome_prices": market.outcome_prices,
+            })
+    except Exception as e:
+        logger.warning(f"Could not fetch markets: {e}")
+        markets_data = []
+    
     return templates.TemplateResponse("markets.html", {
         "request": request,
+        "markets": markets_data,
     })
 
 
@@ -541,6 +582,80 @@ def analyze_market(market_id: str):
         "market_id": market_id,
         "message": "Market analysis not yet implemented",
     }
+
+
+# Polymarket sync endpoint
+@app.post("/api/sync/balance")
+def sync_balance():
+    """Sync USDC balance from Polymarket."""
+    try:
+        balance = poly.get_usdc_balance()
+        
+        # Save portfolio snapshot
+        portfolio_data = {
+            "balance": balance,
+            "total_value": balance,
+            "open_positions": 0,
+            "total_pnl": 0.0,
+            "win_rate": 0.0,
+            "total_trades": 0,
+        }
+        
+        snapshot = db.save_portfolio_snapshot(portfolio_data)
+        
+        return {
+            "status": "success",
+            "balance": balance,
+            "snapshot_id": snapshot.id,
+            "message": f"Balance synced: ${balance:.2f}",
+        }
+    except Exception as e:
+        logger.error(f"Failed to sync balance: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync balance: {str(e)}"
+        )
+
+
+@app.post("/api/sync/markets")
+def sync_markets():
+    """Sync markets from Polymarket and create forecasts."""
+    try:
+        markets = poly.get_all_markets()
+        
+        synced_count = 0
+        for market in markets[:10]:  # Sync first 10 markets
+            # Check if we already have a forecast for this market
+            existing = db.get_forecasts_by_market(str(market.id))
+            if existing:
+                continue
+            
+            # Create a basic forecast
+            forecast_data = {
+                "market_id": str(market.id),
+                "market_question": market.question,
+                "outcome": "Yes",
+                "probability": 0.5,  # Neutral starting point
+                "confidence": 0.5,
+                "base_rate": 0.5,
+                "reasoning": "Market synced from Polymarket API",
+            }
+            
+            db.save_forecast(forecast_data)
+            synced_count += 1
+        
+        return {
+            "status": "success",
+            "total_markets": len(markets),
+            "synced_count": synced_count,
+            "message": f"Synced {synced_count} new markets",
+        }
+    except Exception as e:
+        logger.error(f"Failed to sync markets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to sync markets: {str(e)}"
+        )
 
 
 def main():
