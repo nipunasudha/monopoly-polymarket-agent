@@ -6,6 +6,18 @@ All tests run in **~3.5 seconds** with **zero LLM API costs**.
 
 ## Running Tests
 
+### ⚠️ Important: Always use `uv run test-agents`
+
+Due to a web3 plugin conflict, **do NOT use `uv run pytest` directly**. Always use:
+
+```bash
+# ✅ CORRECT - Use test-agents command
+uv run test-agents
+
+# ❌ WRONG - Will fail with import error
+uv run pytest tests/integration
+```
+
 ### Quick Commands
 
 ```bash
@@ -19,12 +31,12 @@ uv run test-agents -v
 uv run test-agents -m "not slow"
 
 # Run specific test layer
-uv run pytest tests/unit          # Unit tests only
-uv run pytest tests/integration   # Integration tests only
-uv run pytest tests/e2e           # E2E tests only
+uv run test-agents tests/unit          # Unit tests only
+uv run test-agents tests/integration   # Integration tests only
+uv run test-agents tests/e2e           # E2E tests only
 
 # Run with coverage report
-uv run pytest --cov=agents --cov-report=html
+uv run test-agents --cov=agents --cov-report=html
 open htmlcov/index.html
 ```
 
@@ -100,16 +112,25 @@ tests/
 ### Web3 Plugin Error
 If you see `ImportError: cannot import name 'ContractName' from 'eth_typing'`:
 
-**Solution**: The test runner automatically handles this. Just use:
+**Cause**: You're running `uv run pytest` directly instead of using the test runner.
+
+**Solution**: Always use `uv run test-agents`:
 ```bash
-uv run test-agents
+# ✅ CORRECT
+uv run test-agents tests/integration
+
+# ❌ WRONG - causes web3 error
+uv run pytest tests/integration
 ```
 
-### Running Tests Manually
-If you need to run pytest directly:
+### Alternative: Running Tests Manually
+If you absolutely need to run pytest directly:
 ```bash
 cd agents
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -p no:web3 tests/
+
+# Or use the shell script
+./run_tests.sh tests/integration
 ```
 
 ## Example Output
