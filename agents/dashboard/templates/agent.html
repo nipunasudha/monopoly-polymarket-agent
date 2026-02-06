@@ -78,6 +78,7 @@
                         hx-post="/api/agent/run-once"
                         hx-trigger="click"
                         hx-swap="none"
+                        hx-on::after-request="setTimeout(() => { htmx.ajax('GET', '/partials/agent-stats', {target: '#agent-stats', swap: 'innerHTML'}); htmx.ajax('GET', '/partials/activity-feed', {target: '#activity-feed', swap: 'innerHTML'}); }, 500)"
                         class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                         <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
