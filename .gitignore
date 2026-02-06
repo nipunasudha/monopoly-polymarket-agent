@@ -27,4 +27,5 @@ archive.zip
 .cache
 .DS_Store
 local_db*
+.chroma_db
 monopoly_agents.db

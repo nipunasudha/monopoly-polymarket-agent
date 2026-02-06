@@ -107,10 +107,19 @@ class AgentRunner:
         """Internal run loop."""
         logger.info(f"Agent runner started (interval: {self.interval_minutes} minutes)")
         
+        # Emit initial status before first run
+        await self._emit_status_changed()
+        
+        # Give a brief moment for the status to be broadcast
+        await asyncio.sleep(0.1)
+        
         while self.state == AgentState.RUNNING:
             try:
                 # Calculate next run time
                 self.next_run = datetime.utcnow() + timedelta(minutes=self.interval_minutes)
+                
+                # Emit status with next_run time
+                await self._emit_status_changed()
                 
                 # Run agent cycle
                 result = await self.run_agent_cycle()
@@ -131,6 +140,7 @@ class AgentRunner:
                 logger.error(f"Error in run loop: {e}")
                 self.state = AgentState.ERROR
                 self.last_error = str(e)
+                await self._emit_status_changed()
                 break
         
         logger.info("Agent runner stopped")
@@ -144,9 +154,6 @@ class AgentRunner:
         self.state = AgentState.RUNNING
         self.task = asyncio.create_task(self._run_loop())
         logger.info("Agent runner started")
-        
-        # Emit status change event
-        await self._emit_status_changed()
     
     async def stop(self):
         """Stop the agent runner."""

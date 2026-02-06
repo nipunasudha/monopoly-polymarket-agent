@@ -623,6 +623,16 @@ def get_activity_feed_partial(request: Request, limit: int = 20):
     )
 
 
+@app.get("/partials/agent-status-display", response_class=HTMLResponse)
+def get_agent_status_display_partial(request: Request):
+    """Get agent status display partial for HTMX updates."""
+    status_data = agent_runner.get_status()
+    return templates.TemplateResponse(
+        "agent_status_display.html",
+        {"request": request, "status": status_data}
+    )
+
+
 @app.put("/api/agent/interval")
 async def update_interval(interval: IntervalUpdate):
     """Update agent run interval.

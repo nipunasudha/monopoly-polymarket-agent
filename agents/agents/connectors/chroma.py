@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from pathlib import Path
 
 import torch
 from sentence_transformers import SentenceTransformer
@@ -9,6 +10,10 @@ from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
 _DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+
+# Use absolute path for ChromaDB to avoid conflicts
+_CHROMA_BASE_DIR = Path(__file__).parent.parent.parent / ".chroma_db"
+_CHROMA_BASE_DIR.mkdir(exist_ok=True)
 
 
 class LocalEmbeddings(Embeddings):
@@ -73,11 +78,11 @@ class PolymarketRAG:
         return response_docs
 
     def events(self, events: "list[SimpleEvent]", prompt: str) -> "list[tuple]":
-        # create local json file
-        local_events_directory: str = "./local_db_events"
-        if not os.path.isdir(local_events_directory):
-            os.mkdir(local_events_directory)
-        local_file_path = f"{local_events_directory}/events.json"
+        # create local json file with absolute path
+        local_events_directory = _CHROMA_BASE_DIR / "events"
+        local_events_directory.mkdir(exist_ok=True)
+        
+        local_file_path = local_events_directory / "events.json"
         dict_events = [x.dict() for x in events]
         with open(local_file_path, "w+") as output_file:
             json.dump(dict_events, output_file)
@@ -91,7 +96,7 @@ class PolymarketRAG:
             return metadata
 
         loader = JSONLoader(
-            file_path=local_file_path,
+            file_path=str(local_file_path),
             jq_schema=".[]",
             content_key="description",
             text_content=False,
@@ -99,20 +104,20 @@ class PolymarketRAG:
         )
         loaded_docs = loader.load()
         embedding_function = LocalEmbeddings()
-        vector_db_directory = f"{local_events_directory}/chroma"
+        vector_db_directory = local_events_directory / "chroma"
         local_db = Chroma.from_documents(
-            loaded_docs, embedding_function, persist_directory=vector_db_directory
+            loaded_docs, embedding_function, persist_directory=str(vector_db_directory)
         )
 
         # query
         return local_db.similarity_search_with_score(query=prompt)
 
     def markets(self, markets: "list[SimpleMarket]", prompt: str) -> "list[tuple]":
-        # create local json file
-        local_events_directory: str = "./local_db_markets"
-        if not os.path.isdir(local_events_directory):
-            os.mkdir(local_events_directory)
-        local_file_path = f"{local_events_directory}/markets.json"
+        # create local json file with absolute path
+        local_markets_directory = _CHROMA_BASE_DIR / "markets"
+        local_markets_directory.mkdir(exist_ok=True)
+        
+        local_file_path = local_markets_directory / "markets.json"
         with open(local_file_path, "w+") as output_file:
             json.dump(markets, output_file)
 
@@ -128,7 +133,7 @@ class PolymarketRAG:
             return metadata
 
         loader = JSONLoader(
-            file_path=local_file_path,
+            file_path=str(local_file_path),
             jq_schema=".[]",
             content_key="description",
             text_content=False,
@@ -136,9 +141,9 @@ class PolymarketRAG:
         )
         loaded_docs = loader.load()
         embedding_function = LocalEmbeddings()
-        vector_db_directory = f"{local_events_directory}/chroma"
+        vector_db_directory = local_markets_directory / "chroma"
         local_db = Chroma.from_documents(
-            loaded_docs, embedding_function, persist_directory=vector_db_directory
+            loaded_docs, embedding_function, persist_directory=str(vector_db_directory)
         )
 
         # query

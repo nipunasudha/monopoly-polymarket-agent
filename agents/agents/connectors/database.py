@@ -124,13 +124,22 @@ class PortfolioSnapshot(Base):
 class Database:
     """Database manager for agent persistence."""
     
-    def __init__(self, database_url: str = "sqlite:///monopoly_agents.db"):
+    def __init__(self, database_url: str = None):
         """Initialize database connection.
         
         Args:
-            database_url: SQLAlchemy database URL. Defaults to SQLite file.
+            database_url: SQLAlchemy database URL. Defaults to SQLite file in project root.
         """
-        self.engine = create_engine(database_url, echo=False)
+        if database_url is None:
+            # Use absolute path to project root (agents/../monopoly_agents.db)
+            from pathlib import Path
+            # From agents/agents/connectors/database.py go up 3 levels to project root
+            db_path = Path(__file__).parent.parent.parent.parent / "monopoly_agents.db"
+            database_url = f"sqlite:///{db_path}"
+        
+        # For SQLite, we need to allow same thread to be False for async usage
+        connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+        self.engine = create_engine(database_url, echo=False, connect_args=connect_args)
         self.SessionLocal = sessionmaker(bind=self.engine)
         
     def create_tables(self):
