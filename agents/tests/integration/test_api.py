@@ -75,8 +75,17 @@ class TestRootEndpoints:
     """Test root and health check endpoints."""
 
     def test_read_root(self, client):
-        """Test root endpoint returns API info."""
+        """Test root endpoint returns dashboard HTML."""
         response = client.get("/")
+        
+        assert response.status_code == 200
+        # Root now returns HTML dashboard, not JSON
+        assert "text/html" in response.headers["content-type"]
+        assert b"Portfolio Overview" in response.content
+    
+    def test_api_root(self, client):
+        """Test API root endpoint returns JSON."""
+        response = client.get("/api")
         
         assert response.status_code == 200
         data = response.json()

@@ -1,8 +1,8 @@
 # Testing Quick Start Guide
 
-## ✅ Phase 1 & 2 Complete: 130 Tests Passing
+## ✅ Phase 1 & 2 Complete: 153 Tests Passing
 
-All tests run in **~4 seconds** with **zero LLM API costs**.
+All tests run in **~5 seconds** with **zero LLM API costs**.
 
 ## Running Tests
 
@@ -66,9 +66,9 @@ tests/
 | Layer | Tests | Coverage | Speed |
 |-------|-------|----------|-------|
 | Unit | 42 | Utilities, models, parsers | ~2.4s |
-| Integration | 77 | LLM, search, database, API (mocked) | ~6.3s |
+| Integration | 99 | LLM, search, database, API, dashboard | ~7.5s |
 | E2E | 8 | Full workflows (mocked) | ~0.3s |
-| **Total** | **130** | **Phase 1 & 2 complete** | **~4.0s** |
+| **Total** | **153** | **Phase 1 & 2 complete** | **~5.0s** |
 
 ## Key Features
 
@@ -89,21 +89,25 @@ tests/
 - Forecast generation workflow
 - Error handling
 
-### ✅ Phase 2 (Complete - 54 tests)
+### ✅ Phase 2 (Complete - 77 tests)
 - **2.1 Database persistence** (26 tests)
   - Forecast CRUD operations
   - Trade CRUD operations
   - Portfolio snapshots
   - Database migrations
-- **2.2 API endpoints** (28 tests)
+- **2.2 API endpoints** (29 tests)
   - Forecast endpoints
   - Trade endpoints
   - Portfolio endpoints
   - Agent control endpoints
+- **2.3 Dashboard UI** (22 tests)
+  - Portfolio overview page
+  - Forecasts page
+  - Trades page
+  - Navigation and responsive design
 
 ### ⏳ Phase 2 Remaining (TODO)
-- Dashboard UI (Jinja2 + HTMX)
-- Background agent runner
+- Background agent runner (Phase 2.4)
 
 ### ⏳ Phase 3 (TODO)
 - Multi-agent coordination

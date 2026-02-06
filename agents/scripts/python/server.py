@@ -1,6 +1,10 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, status
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, status, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -11,6 +15,10 @@ app = FastAPI(
     description="API for Polymarket prediction agent system",
     version="0.1.0",
 )
+
+# Setup templates
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "dashboard" / "templates"))
 
 # Initialize database
 # Note: Database file is created in the agents/ directory
@@ -65,8 +73,60 @@ class AgentStatus(BaseModel):
     total_trades: int
 
 
-# Root endpoint
-@app.get("/")
+# Dashboard Routes (HTML)
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard_home(request: Request):
+    """Portfolio overview dashboard."""
+    # Get latest portfolio snapshot
+    portfolio = db.get_latest_portfolio_snapshot()
+    
+    # Get portfolio history for chart
+    history = db.get_portfolio_history(limit=30)
+    
+    # Get recent trades
+    recent_trades = db.get_recent_trades(limit=5)
+    
+    return templates.TemplateResponse("portfolio.html", {
+        "request": request,
+        "portfolio": portfolio.to_dict() if portfolio else {},
+        "history": [h.to_dict() for h in history],
+        "recent_trades": [t.to_dict() for t in recent_trades],
+    })
+
+
+@app.get("/markets", response_class=HTMLResponse)
+async def dashboard_markets(request: Request):
+    """Markets scanner dashboard."""
+    return templates.TemplateResponse("markets.html", {
+        "request": request,
+    })
+
+
+@app.get("/trades", response_class=HTMLResponse)
+async def dashboard_trades(request: Request):
+    """Trade history dashboard."""
+    trades = db.get_recent_trades(limit=50)
+    
+    return templates.TemplateResponse("trades.html", {
+        "request": request,
+        "trades": [t.to_dict() for t in trades],
+    })
+
+
+@app.get("/forecasts", response_class=HTMLResponse)
+async def dashboard_forecasts(request: Request):
+    """Forecasts dashboard."""
+    forecasts = db.get_recent_forecasts(limit=20)
+    
+    return templates.TemplateResponse("forecasts.html", {
+        "request": request,
+        "forecasts": [f.to_dict() for f in forecasts],
+    })
+
+
+# API Root endpoint
+@app.get("/api")
 def read_root():
     return {
         "name": "Monopoly Agents API",
