@@ -88,3 +88,4 @@ class Trader:
 if __name__ == "__main__":
     t = Trader()
     t.one_best_trade()
+ 
