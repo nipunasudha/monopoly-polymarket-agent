@@ -182,11 +182,13 @@ class Executor:
         return content
 
     def format_trade_prompt_for_execution(self, best_trade: str) -> float:
-        data = best_trade.split(",")
-        # price = re.findall("\d+\.\d+", data[0])[0]
-        size = re.findall("\d+\.\d+", data[1])[0]
+        # Extract size from the RESPONSE block (e.g. "size:0.25")
+        size_match = re.search(r'size\s*:\s*(\d+\.?\d*)', best_trade)
+        if not size_match:
+            raise ValueError(f"Could not parse size from trade response: {best_trade[-200:]}")
+        size = float(size_match.group(1))
         usdc_balance = self.polymarket.get_usdc_balance()
-        return float(size) * usdc_balance
+        return size * usdc_balance
 
     def source_best_market_to_create(self, filtered_markets) -> str:
         prompt = self.prompter.create_new_market(filtered_markets)
