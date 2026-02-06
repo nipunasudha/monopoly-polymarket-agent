@@ -1,8 +1,8 @@
 # Testing Quick Start Guide
 
-## ✅ Phase 1 Complete: 76 Tests Passing
+## ✅ Phase 1 & 2 Complete: 130 Tests Passing
 
-All tests run in **~3.5 seconds** with **zero LLM API costs**.
+All tests run in **~4 seconds** with **zero LLM API costs**.
 
 ## Running Tests
 
@@ -66,9 +66,9 @@ tests/
 | Layer | Tests | Coverage | Speed |
 |-------|-------|----------|-------|
 | Unit | 42 | Utilities, models, parsers | ~2.4s |
-| Integration | 23 | LLM, search (mocked) | ~1.0s |
+| Integration | 77 | LLM, search, database, API (mocked) | ~6.3s |
 | E2E | 8 | Full workflows (mocked) | ~0.3s |
-| **Total** | **76** | **Phase 1 complete** | **~3.5s** |
+| **Total** | **130** | **Phase 1 & 2 complete** | **~4.0s** |
 
 ## Key Features
 
@@ -80,7 +80,7 @@ tests/
 
 ## What's Tested
 
-### ✅ Phase 1 (Complete)
+### ✅ Phase 1 (Complete - 76 tests)
 - Utility functions (parsing, preprocessing)
 - Pydantic model validation
 - LLM integration (mocked)
@@ -89,11 +89,21 @@ tests/
 - Forecast generation workflow
 - Error handling
 
-### ⏳ Phase 2 (TODO)
-- Database persistence (SQLite)
-- API endpoints (FastAPI)
-- Dashboard workflows
-- WebSocket streaming
+### ✅ Phase 2 (Complete - 54 tests)
+- **2.1 Database persistence** (26 tests)
+  - Forecast CRUD operations
+  - Trade CRUD operations
+  - Portfolio snapshots
+  - Database migrations
+- **2.2 API endpoints** (28 tests)
+  - Forecast endpoints
+  - Trade endpoints
+  - Portfolio endpoints
+  - Agent control endpoints
+
+### ⏳ Phase 2 Remaining (TODO)
+- Dashboard UI (Jinja2 + HTMX)
+- Background agent runner
 
 ### ⏳ Phase 3 (TODO)
 - Multi-agent coordination

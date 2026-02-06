@@ -1,28 +1,275 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
-from typing import Union
-from fastapi import FastAPI
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException, status
+from pydantic import BaseModel
+from datetime import datetime
 
-app = FastAPI()
+from agents.connectors.database import Database
+
+app = FastAPI(
+    title="Monopoly Agents API",
+    description="API for Polymarket prediction agent system",
+    version="0.1.0",
+)
+
+# Initialize database
+# Note: Database file is created in the agents/ directory
+# It's ignored by git (see .gitignore)
+db = Database()  # Default: sqlite:///monopoly_agents.db
+db.create_tables()
 
 
+# Pydantic models for API
+class ForecastResponse(BaseModel):
+    id: int
+    market_id: str
+    market_question: str
+    outcome: str
+    probability: float
+    confidence: float
+    base_rate: Optional[float]
+    reasoning: Optional[str]
+    created_at: str
+
+
+class TradeResponse(BaseModel):
+    id: int
+    market_id: str
+    market_question: str
+    outcome: str
+    side: str
+    size: float
+    price: Optional[float]
+    forecast_probability: float
+    edge: Optional[float]
+    status: str
+    created_at: str
+    executed_at: Optional[str]
+
+
+class PortfolioResponse(BaseModel):
+    balance: float
+    total_value: float
+    open_positions: int
+    total_pnl: float
+    win_rate: Optional[float]
+    total_trades: int
+    created_at: str
+
+
+class AgentStatus(BaseModel):
+    running: bool
+    last_run: Optional[str]
+    next_run: Optional[str]
+    total_forecasts: int
+    total_trades: int
+
+
+# Root endpoint
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {
+        "name": "Monopoly Agents API",
+        "version": "0.1.0",
+        "status": "running",
+    }
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+# Health check
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
-@app.get("/trades/{trade_id}")
-def read_trade(trade_id: int, q: Union[str, None] = None):
-    return {"trade_id": trade_id, "q": q}
+# Forecast endpoints
+@app.get("/api/forecasts", response_model=List[ForecastResponse])
+def get_forecasts(limit: int = 10):
+    """Get recent forecasts."""
+    forecasts = db.get_recent_forecasts(limit=limit)
+    return [
+        ForecastResponse(
+            id=f.id,
+            market_id=f.market_id,
+            market_question=f.market_question,
+            outcome=f.outcome,
+            probability=f.probability,
+            confidence=f.confidence,
+            base_rate=f.base_rate,
+            reasoning=f.reasoning,
+            created_at=f.created_at.isoformat(),
+        )
+        for f in forecasts
+    ]
 
 
-@app.get("/markets/{market_id}")
-def read_market(market_id: int, q: Union[str, None] = None):
-    return {"market_id": market_id, "q": q}
+@app.get("/api/forecasts/{forecast_id}", response_model=ForecastResponse)
+def get_forecast(forecast_id: int):
+    """Get a specific forecast by ID."""
+    forecast = db.get_forecast(forecast_id)
+    if not forecast:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Forecast {forecast_id} not found",
+        )
+    return ForecastResponse(
+        id=forecast.id,
+        market_id=forecast.market_id,
+        market_question=forecast.market_question,
+        outcome=forecast.outcome,
+        probability=forecast.probability,
+        confidence=forecast.confidence,
+        base_rate=forecast.base_rate,
+        reasoning=forecast.reasoning,
+        created_at=forecast.created_at.isoformat(),
+    )
 
 
-# post new prompt
+@app.get("/api/markets/{market_id}/forecasts", response_model=List[ForecastResponse])
+def get_market_forecasts(market_id: str):
+    """Get all forecasts for a specific market."""
+    forecasts = db.get_forecasts_by_market(market_id)
+    return [
+        ForecastResponse(
+            id=f.id,
+            market_id=f.market_id,
+            market_question=f.market_question,
+            outcome=f.outcome,
+            probability=f.probability,
+            confidence=f.confidence,
+            base_rate=f.base_rate,
+            reasoning=f.reasoning,
+            created_at=f.created_at.isoformat(),
+        )
+        for f in forecasts
+    ]
+
+
+# Trade endpoints
+@app.get("/api/trades", response_model=List[TradeResponse])
+def get_trades(limit: int = 10):
+    """Get recent trades."""
+    trades = db.get_recent_trades(limit=limit)
+    return [
+        TradeResponse(
+            id=t.id,
+            market_id=t.market_id,
+            market_question=t.market_question,
+            outcome=t.outcome,
+            side=t.side,
+            size=t.size,
+            price=t.price,
+            forecast_probability=t.forecast_probability,
+            edge=t.edge,
+            status=t.status,
+            created_at=t.created_at.isoformat(),
+            executed_at=t.executed_at.isoformat() if t.executed_at else None,
+        )
+        for t in trades
+    ]
+
+
+@app.get("/api/trades/{trade_id}", response_model=TradeResponse)
+def get_trade(trade_id: int):
+    """Get a specific trade by ID."""
+    trade = db.get_trade(trade_id)
+    if not trade:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Trade {trade_id} not found",
+        )
+    return TradeResponse(
+        id=trade.id,
+        market_id=trade.market_id,
+        market_question=trade.market_question,
+        outcome=trade.outcome,
+        side=trade.side,
+        size=trade.size,
+        price=trade.price,
+        forecast_probability=trade.forecast_probability,
+        edge=trade.edge,
+        status=trade.status,
+        created_at=trade.created_at.isoformat(),
+        executed_at=trade.executed_at.isoformat() if trade.executed_at else None,
+    )
+
+
+# Portfolio endpoints
+@app.get("/api/portfolio", response_model=PortfolioResponse)
+def get_portfolio():
+    """Get current portfolio state."""
+    snapshot = db.get_latest_portfolio_snapshot()
+    if not snapshot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No portfolio data available",
+        )
+    return PortfolioResponse(
+        balance=snapshot.balance,
+        total_value=snapshot.total_value,
+        open_positions=snapshot.open_positions,
+        total_pnl=snapshot.total_pnl,
+        win_rate=snapshot.win_rate,
+        total_trades=snapshot.total_trades,
+        created_at=snapshot.created_at.isoformat(),
+    )
+
+
+@app.get("/api/portfolio/history", response_model=List[PortfolioResponse])
+def get_portfolio_history(limit: int = 30):
+    """Get portfolio history."""
+    snapshots = db.get_portfolio_history(limit=limit)
+    return [
+        PortfolioResponse(
+            balance=s.balance,
+            total_value=s.total_value,
+            open_positions=s.open_positions,
+            total_pnl=s.total_pnl,
+            win_rate=s.win_rate,
+            total_trades=s.total_trades,
+            created_at=s.created_at.isoformat(),
+        )
+        for s in snapshots
+    ]
+
+
+# Agent control endpoints
+@app.get("/api/agent/status", response_model=AgentStatus)
+def get_agent_status():
+    """Get agent status."""
+    # Get counts from database
+    forecasts = db.get_recent_forecasts(limit=1000)
+    trades = db.get_recent_trades(limit=1000)
+    
+    return AgentStatus(
+        running=False,  # TODO: Implement actual status tracking
+        last_run=None,
+        next_run=None,
+        total_forecasts=len(forecasts),
+        total_trades=len(trades),
+    )
+
+
+@app.post("/api/agent/start")
+def start_agent():
+    """Start the agent."""
+    # TODO: Implement agent start logic
+    return {"status": "started", "message": "Agent start not yet implemented"}
+
+
+@app.post("/api/agent/stop")
+def stop_agent():
+    """Stop the agent."""
+    # TODO: Implement agent stop logic
+    return {"status": "stopped", "message": "Agent stop not yet implemented"}
+
+
+# Market analysis endpoint
+@app.post("/api/markets/{market_id}/analyze")
+def analyze_market(market_id: str):
+    """Trigger analysis for a specific market."""
+    # TODO: Implement market analysis logic
+    return {
+        "status": "analyzing",
+        "market_id": market_id,
+        "message": "Market analysis not yet implemented",
+    }
