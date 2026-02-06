@@ -84,7 +84,7 @@ Based on the open-source [Polymarket Agents](https://github.com/polymarket/agent
 
 # Getting Started
 
-This repo is intended for use with Python 3.9.
+This repo uses [uv](https://docs.astral.sh/uv/) for dependency management and requires Python 3.9+.
 
 1. Clone the repository
 
@@ -93,18 +93,16 @@ This repo is intended for use with Python 3.9.
    cd monopoly-agents
    ```
 
-2. Create and activate the virtual environment
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it:
 
    ```
-   virtualenv --python=python3.9 .venv
-   source .venv/bin/activate   # macOS/Linux
-   .venv\Scripts\activate      # Windows
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. Install the required dependencies:
+3. Install dependencies (this also creates the `.venv` automatically):
 
    ```
-   pip install -r requirements.txt
+   uv sync
    ```
 
 4. Set up your environment variables:
@@ -122,47 +120,41 @@ This repo is intended for use with Python 3.9.
    NEWSAPI_API_KEY=""              # Optional: news data
    ```
 
-5. Set the Python path (required when running outside Docker):
+5. Load your wallet with USDC.
+
+6. Try the CLI or go trade:
 
    ```
-   export PYTHONPATH="."
-   ```
-
-6. Load your wallet with USDC.
-
-7. Try the CLI or go trade:
-
-   ```
-   python scripts/python/cli.py --help
-   python agents/application/trade.py
+   uv run monopoly --help
+   uv run monopoly run-autonomous-trader
    ```
 
 ## CLI Commands
 
 ### Market Discovery
 ```bash
-python scripts/python/cli.py get-all-markets --limit 5 --sort-by spread
-python scripts/python/cli.py get-all-events --limit 3
+uv run monopoly get-all-markets --limit 5 --sort-by spread
+uv run monopoly get-all-events --limit 3
 ```
 
 ### Data & Research
 ```bash
-python scripts/python/cli.py get-relevant-news "bitcoin" "ethereum"
-python scripts/python/cli.py create-local-markets-rag ./market_data
-python scripts/python/cli.py query-local-markets-rag ./vector_db "best crypto bet"
+uv run monopoly get-relevant-news "bitcoin" "ethereum"
+uv run monopoly create-local-markets-rag ./market_data
+uv run monopoly query-local-markets-rag ./vector_db "best crypto bet"
 ```
 
 ### AI Forecasting
 ```bash
-python scripts/python/cli.py ask-superforecaster "Bitcoin ETF" "Will pass?" "yes"
-python scripts/python/cli.py ask-llm "What's your opinion on AI?"
-python scripts/python/cli.py ask-polymarket-llm "Best market opportunities today?"
+uv run monopoly ask-superforecaster "Bitcoin ETF" "Will pass?" "yes"
+uv run monopoly ask-llm "What's your opinion on AI?"
+uv run monopoly ask-polymarket-llm "Best market opportunities today?"
 ```
 
 ### Trading
 ```bash
-python scripts/python/cli.py create-market
-python scripts/python/cli.py run-autonomous-trader
+uv run monopoly create-market
+uv run monopoly run-autonomous-trader
 ```
 
 ## Container Setup
@@ -179,7 +171,7 @@ Or manually:
 ```bash
 docker build -t monopoly-agents:latest .
 docker run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. monopoly-agents:latest /bin/bash
+  monopoly-agents:latest /bin/bash
 ```
 
 ### Podman
@@ -189,15 +181,10 @@ Podman works as a drop-in replacement for Docker. See [PODMAN_SETUP.md](PODMAN_S
 ```bash
 podman build -t monopoly-agents:latest .
 podman run -it -v $(pwd):/home -v $(pwd)/.env:/home/.env \
-  -e PYTHONPATH=. monopoly-agents:latest /bin/bash
+  monopoly-agents:latest /bin/bash
 ```
 
 ## Troubleshooting
-
-**"Module not found" errors** — Ensure `PYTHONPATH` is set:
-```bash
-export PYTHONPATH="."
-```
 
 **"Private key is needed" error** — Add a key to `.env` (use a test key for read-only testing):
 ```bash
@@ -209,7 +196,7 @@ POLYGON_WALLET_PRIVATE_KEY="0x00000000000000000000000000000000000000000000000000
 **Chromadb collection errors** — Reset the RAG database:
 ```bash
 rm -rf .chroma_db/
-python scripts/python/cli.py create-local-markets-rag ./market_data
+uv run monopoly create-local-markets-rag ./market_data
 ```
 
 ## APIs
@@ -233,7 +220,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 Please run pre-commit hooks before contributing:
 ```
-pre-commit install
+uv run pre-commit install
 ```
 
 # Related Repos
