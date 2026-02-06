@@ -3,90 +3,17 @@ Integration tests for FastAPI endpoints.
 """
 import pytest
 import json
-from unittest.mock import Mock, patch
-from fastapi.testclient import TestClient
-from scripts.python.server import app, db
+from unittest.mock import patch
+from scripts.python.server import db
 
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def setup_test_db():
-    """Setup and teardown test database for each test."""
-    # Drop and recreate tables for each test
-    db.drop_tables()
-    db.create_tables()
-    
-    yield
-    
-    # Cleanup: ensure agent is stopped after each test
-    from agents.application.runner import get_agent_runner
-    runner = get_agent_runner()
-    if runner.state.value == "running":
-        # Force stop synchronously
-        runner.state = runner.state.__class__.STOPPED
-        if runner.task:
-            runner.task.cancel()
-    
-    # Cleanup database
-    db.drop_tables()
-
-
-@pytest.fixture
-def sample_forecast_in_db():
-    """Add a sample forecast to the database."""
-    forecast_data = {
-        "market_id": "12345",
-        "market_question": "Will Bitcoin reach $100k by end of 2026?",
-        "outcome": "Yes",
-        "probability": 0.35,
-        "confidence": 0.70,
-        "base_rate": 0.30,
-        "reasoning": "Based on historical trends...",
-    }
-    return db.save_forecast(forecast_data)
-
-
-@pytest.fixture
-def sample_trade_in_db():
-    """Add a sample trade to the database."""
-    trade_data = {
-        "market_id": "12345",
-        "market_question": "Will Bitcoin reach $100k by end of 2026?",
-        "outcome": "Yes",
-        "side": "BUY",
-        "size": 250.0,
-        "price": 0.45,
-        "forecast_probability": 0.60,
-        "edge": 0.15,
-        "status": "pending",
-    }
-    return db.save_trade(trade_data)
-
-
-@pytest.fixture
-def sample_portfolio_in_db():
-    """Add a sample portfolio snapshot to the database."""
-    portfolio_data = {
-        "balance": 1000.0,
-        "total_value": 1250.0,
-        "open_positions": 3,
-        "total_pnl": 250.0,
-        "win_rate": 0.65,
-        "total_trades": 10,
-    }
-    return db.save_portfolio_snapshot(portfolio_data)
+# All fixtures are now in conftest.py
 
 
 @pytest.mark.integration
 class TestRootEndpoints:
     """Test root and health check endpoints."""
 
-    def test_read_root(self, client):
+    def test_read_root(self, client, setup_test_db):
         """Test root endpoint returns dashboard HTML."""
         response = client.get("/")
         
@@ -95,7 +22,7 @@ class TestRootEndpoints:
         assert "text/html" in response.headers["content-type"]
         assert b"Portfolio Overview" in response.content
     
-    def test_api_root(self, client):
+    def test_api_root(self, client, setup_test_db):
         """Test API root endpoint returns JSON."""
         response = client.get("/api")
         
@@ -119,7 +46,7 @@ class TestRootEndpoints:
 class TestForecastEndpoints:
     """Test forecast API endpoints."""
 
-    def test_get_forecasts_empty(self, client):
+    def test_get_forecasts_empty(self, client, setup_test_db):
         """Test getting forecasts from empty database."""
         response = client.get("/api/forecasts")
         
@@ -128,7 +55,7 @@ class TestForecastEndpoints:
         assert isinstance(data, list)
         assert len(data) == 0
 
-    def test_get_forecasts_with_data(self, client, sample_forecast_in_db):
+    def test_get_forecasts_with_data(self, client, setup_test_db, sample_forecast_in_db):
         """Test getting forecasts with data in database."""
         response = client.get("/api/forecasts")
         
@@ -138,7 +65,7 @@ class TestForecastEndpoints:
         assert data[0]["market_id"] == "12345"
         assert data[0]["probability"] == 0.35
 
-    def test_get_forecasts_with_limit(self, client):
+    def test_get_forecasts_with_limit(self, client, setup_test_db):
         """Test getting forecasts with limit parameter."""
         # Add multiple forecasts
         for i in range(5):
@@ -167,7 +94,7 @@ class TestForecastEndpoints:
         assert data["id"] == forecast_id
         assert data["market_id"] == "12345"
 
-    def test_get_forecast_not_found(self, client):
+    def test_get_forecast_not_found(self, client, setup_test_db):
         """Test getting a non-existent forecast returns 404."""
         response = client.get("/api/forecasts/99999")
         
@@ -175,7 +102,7 @@ class TestForecastEndpoints:
         data = response.json()
         assert "not found" in data["detail"].lower()
 
-    def test_get_market_forecasts(self, client, sample_forecast_in_db):
+    def test_get_market_forecasts(self, client, setup_test_db, sample_forecast_in_db):
         """Test getting all forecasts for a specific market."""
         # Add another forecast for the same market
         db.save_forecast({
@@ -193,7 +120,7 @@ class TestForecastEndpoints:
         assert len(data) == 2
         assert all(f["market_id"] == "12345" for f in data)
 
-    def test_get_market_forecasts_empty(self, client):
+    def test_get_market_forecasts_empty(self, client, setup_test_db):
         """Test getting forecasts for market with no forecasts."""
         response = client.get("/api/markets/nonexistent/forecasts")
         
@@ -206,7 +133,7 @@ class TestForecastEndpoints:
 class TestTradeEndpoints:
     """Test trade API endpoints."""
 
-    def test_get_trades_empty(self, client):
+    def test_get_trades_empty(self, client, setup_test_db):
         """Test getting trades from empty database."""
         response = client.get("/api/trades")
         
@@ -226,7 +153,7 @@ class TestTradeEndpoints:
         assert data[0]["side"] == "BUY"
         assert data[0]["size"] == 250.0
 
-    def test_get_trades_with_limit(self, client):
+    def test_get_trades_with_limit(self, client, setup_test_db):
         """Test getting trades with limit parameter."""
         # Add multiple trades
         for i in range(5):
@@ -257,7 +184,7 @@ class TestTradeEndpoints:
         assert data["market_id"] == "12345"
         assert data["status"] == "pending"
 
-    def test_get_trade_not_found(self, client):
+    def test_get_trade_not_found(self, client, setup_test_db):
         """Test getting a non-existent trade returns 404."""
         response = client.get("/api/trades/99999")
         
@@ -270,7 +197,7 @@ class TestTradeEndpoints:
 class TestPortfolioEndpoints:
     """Test portfolio API endpoints."""
 
-    def test_get_portfolio_empty(self, client):
+    def test_get_portfolio_empty(self, client, setup_test_db):
         """Test getting portfolio with no data returns 404."""
         response = client.get("/api/portfolio")
         
@@ -290,7 +217,7 @@ class TestPortfolioEndpoints:
         assert data["total_pnl"] == 250.0
         assert data["win_rate"] == 0.65
 
-    def test_get_portfolio_returns_latest(self, client):
+    def test_get_portfolio_returns_latest(self, client, setup_test_db):
         """Test that portfolio endpoint returns the most recent snapshot."""
         # Add multiple snapshots
         db.save_portfolio_snapshot({
@@ -314,7 +241,7 @@ class TestPortfolioEndpoints:
         data = response.json()
         assert data["balance"] == 1500.0  # Should be the latest
 
-    def test_get_portfolio_history_empty(self, client):
+    def test_get_portfolio_history_empty(self, client, setup_test_db):
         """Test getting portfolio history from empty database."""
         response = client.get("/api/portfolio/history")
         
@@ -323,7 +250,7 @@ class TestPortfolioEndpoints:
         assert isinstance(data, list)
         assert len(data) == 0
 
-    def test_get_portfolio_history_with_data(self, client):
+    def test_get_portfolio_history_with_data(self, client, setup_test_db):
         """Test getting portfolio history."""
         # Add multiple snapshots
         for i in range(5):
@@ -341,7 +268,7 @@ class TestPortfolioEndpoints:
         data = response.json()
         assert len(data) == 5
 
-    def test_get_portfolio_history_with_limit(self, client):
+    def test_get_portfolio_history_with_limit(self, client, setup_test_db):
         """Test getting portfolio history with limit."""
         # Add multiple snapshots
         for i in range(10):
@@ -358,55 +285,6 @@ class TestPortfolioEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 5
-
-
-@pytest.mark.integration
-class TestAgentControlEndpoints:
-    """Test agent control API endpoints."""
-
-    def test_get_agent_status(self, client):
-        """Test getting agent status."""
-        response = client.get("/api/agent/status")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "running" in data
-        assert "total_forecasts" in data
-        assert "total_trades" in data
-
-    def test_get_agent_status_with_data(self, client, sample_forecast_in_db, sample_trade_in_db):
-        """Test agent status includes counts."""
-        response = client.get("/api/agent/status")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_forecasts"] >= 1
-        assert data["total_trades"] >= 1
-
-    def test_start_agent(self, client):
-        """Test starting the agent."""
-        response = client.post("/api/agent/start")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-
-    def test_stop_agent(self, client):
-        """Test stopping the agent."""
-        response = client.post("/api/agent/stop")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-
-    def test_analyze_market(self, client):
-        """Test triggering market analysis."""
-        response = client.post("/api/markets/12345/analyze")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["market_id"] == "12345"
-        assert "status" in data
 
 
 @pytest.mark.integration
@@ -477,7 +355,10 @@ class TestAPIResponseFormats:
 
 @pytest.mark.integration
 class TestAgentControlEndpoints:
-    """Test agent control API endpoints."""
+    """Test agent control API endpoints.
+    
+    Note: Comprehensive integration tests for agent runner are in test_api_runner_integration.py
+    """
 
     def test_agent_status_endpoint(self, client, setup_test_db):
         """Test GET /api/agent/status."""
@@ -641,7 +522,7 @@ class TestAgentControlEndpoints:
         assert response.status_code == 400
         assert "at least 1 minute" in response.json()["detail"].lower()
 
-    def test_agent_status_reflects_database_counts(self, client, sample_forecast_in_db, sample_trade_in_db):
+    def test_agent_status_reflects_database_counts(self, client, setup_test_db, sample_forecast_in_db, sample_trade_in_db):
         """Test that agent status includes database counts."""
         response = client.get("/api/agent/status")
         

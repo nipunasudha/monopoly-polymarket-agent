@@ -2,70 +2,15 @@
 Integration tests for dashboard UI pages.
 """
 import pytest
-from fastapi.testclient import TestClient
-from scripts.python.server import app, db
 
-
-@pytest.fixture
-def client():
-    """Create a test client."""
-    return TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def setup_test_db():
-    """Setup and teardown test database for each test."""
-    # Drop and recreate tables for each test
-    db.drop_tables()
-    db.create_tables()
-    yield
-    # Cleanup
-    db.drop_tables()
-
-
-@pytest.fixture
-def sample_data_in_db():
-    """Add sample data to database for testing."""
-    # Add forecast
-    forecast = db.save_forecast({
-        "market_id": "12345",
-        "market_question": "Will Bitcoin reach $100k by end of 2026?",
-        "outcome": "Yes",
-        "probability": 0.35,
-        "confidence": 0.70,
-        "reasoning": "Based on historical trends and current market conditions.",
-    })
-    
-    # Add trade
-    trade = db.save_trade({
-        "market_id": "12345",
-        "market_question": "Will Bitcoin reach $100k by end of 2026?",
-        "outcome": "Yes",
-        "side": "BUY",
-        "size": 250.0,
-        "price": 0.45,
-        "forecast_probability": 0.60,
-        "status": "executed",
-    })
-    
-    # Add portfolio snapshot
-    portfolio = db.save_portfolio_snapshot({
-        "balance": 1000.0,
-        "total_value": 1250.0,
-        "open_positions": 3,
-        "total_pnl": 250.0,
-        "win_rate": 0.65,
-        "total_trades": 10,
-    })
-    
-    return {"forecast": forecast, "trade": trade, "portfolio": portfolio}
+# All fixtures are now in conftest.py
 
 
 @pytest.mark.integration
 class TestDashboardPages:
     """Test dashboard HTML pages."""
 
-    def test_portfolio_page_loads(self, client):
+    def test_portfolio_page_loads(self, client, setup_test_db):
         """Test portfolio dashboard page loads."""
         response = client.get("/")
         
@@ -81,7 +26,7 @@ class TestDashboardPages:
         assert b"$1000" in response.content or b"1000.0" in response.content
         assert b"$250" in response.content or b"250.0" in response.content
 
-    def test_markets_page_loads(self, client):
+    def test_markets_page_loads(self, client, setup_test_db):
         """Test markets scanner page loads."""
         response = client.get("/markets")
         
@@ -89,7 +34,7 @@ class TestDashboardPages:
         assert "text/html" in response.headers["content-type"]
         assert b"Market Scanner" in response.content
 
-    def test_trades_page_loads(self, client):
+    def test_trades_page_loads(self, client, setup_test_db):
         """Test trades history page loads."""
         response = client.get("/trades")
         
@@ -106,7 +51,7 @@ class TestDashboardPages:
         assert b"BUY" in response.content
         assert b"executed" in response.content
 
-    def test_forecasts_page_loads(self, client):
+    def test_forecasts_page_loads(self, client, setup_test_db):
         """Test forecasts page loads."""
         response = client.get("/forecasts")
         
@@ -127,7 +72,7 @@ class TestDashboardPages:
 class TestDashboardNavigation:
     """Test dashboard navigation."""
 
-    def test_navigation_links_present(self, client):
+    def test_navigation_links_present(self, client, setup_test_db):
         """Test that navigation links are present on all pages."""
         pages = ["/", "/markets", "/trades", "/forecasts"]
         
@@ -140,7 +85,7 @@ class TestDashboardNavigation:
             assert b"Trades" in response.content
             assert b"Forecasts" in response.content
 
-    def test_page_titles(self, client):
+    def test_page_titles(self, client, setup_test_db):
         """Test that pages have correct titles."""
         test_cases = [
             ("/", b"Portfolio Overview"),
@@ -159,7 +104,7 @@ class TestDashboardNavigation:
 class TestDashboardEmptyStates:
     """Test dashboard empty states."""
 
-    def test_portfolio_empty_state(self, client):
+    def test_portfolio_empty_state(self, client, setup_test_db):
         """Test portfolio page with no data."""
         response = client.get("/")
         
@@ -167,14 +112,14 @@ class TestDashboardEmptyStates:
         # Should show zeros or empty state
         assert b"$0" in response.content or b"0.0" in response.content
 
-    def test_trades_empty_state(self, client):
+    def test_trades_empty_state(self, client, setup_test_db):
         """Test trades page with no data."""
         response = client.get("/trades")
         
         assert response.status_code == 200
         assert b"No trades yet" in response.content
 
-    def test_forecasts_empty_state(self, client):
+    def test_forecasts_empty_state(self, client, setup_test_db):
         """Test forecasts page with no data."""
         response = client.get("/forecasts")
         
@@ -186,21 +131,21 @@ class TestDashboardEmptyStates:
 class TestDashboardAssets:
     """Test dashboard assets and dependencies."""
 
-    def test_tailwind_css_loaded(self, client):
+    def test_tailwind_css_loaded(self, client, setup_test_db):
         """Test that Tailwind CSS is loaded."""
         response = client.get("/")
         
         assert response.status_code == 200
         assert b"tailwindcss.com" in response.content
 
-    def test_htmx_loaded(self, client):
+    def test_htmx_loaded(self, client, setup_test_db):
         """Test that HTMX is loaded."""
         response = client.get("/")
         
         assert response.status_code == 200
         assert b"htmx.org" in response.content
 
-    def test_chartjs_loaded(self, client):
+    def test_chartjs_loaded(self, client, setup_test_db):
         """Test that Chart.js is loaded."""
         response = client.get("/")
         
@@ -258,7 +203,7 @@ class TestDashboardDataRendering:
 class TestDashboardResponsiveness:
     """Test dashboard responsive design."""
 
-    def test_mobile_navigation_classes(self, client):
+    def test_mobile_navigation_classes(self, client, setup_test_db):
         """Test that mobile-responsive classes are present."""
         response = client.get("/")
         
@@ -269,7 +214,7 @@ class TestDashboardResponsiveness:
         assert "sm:" in content  # Small screens
         assert "lg:" in content  # Large screens
 
-    def test_grid_responsive_classes(self, client):
+    def test_grid_responsive_classes(self, client, setup_test_db):
         """Test that grid layouts have responsive classes."""
         response = client.get("/")
         

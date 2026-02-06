@@ -3,18 +3,10 @@ Integration tests for background agent runner.
 """
 import pytest
 import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import patch, AsyncMock
 from agents.application.runner import AgentRunner, AgentState, get_agent_runner
 
-
-@pytest.fixture
-def mock_trader():
-    """Mock Trader class."""
-    with patch("agents.application.runner.Trader") as mock:
-        trader_instance = Mock()
-        trader_instance.one_best_trade = Mock()
-        mock.return_value = trader_instance
-        yield trader_instance
+# All fixtures are now in conftest.py
 
 
 @pytest.fixture
