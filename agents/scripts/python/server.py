@@ -65,9 +65,15 @@ async def startup_event():
 async def shutdown_event():
     """Run on application shutdown."""
     logger.info("Application shutting down...")
+    
+    # Stop agent runner
     if agent_runner.state.value == "running":
         await agent_runner.stop()
-    logger.info("Agent runner stopped")
+    
+    # Close all SSE connections
+    await broadcaster.close_all_connections()
+    
+    logger.info("Agent runner stopped and connections closed")
 
 
 # Pydantic models for API
@@ -765,9 +771,39 @@ def sync_markets():
 
 
 def main():
-    """Start the FastAPI server."""
+    """Start the FastAPI server (production mode)."""
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import signal
+    
+    # Configure uvicorn with timeout settings for faster shutdown
+    config = uvicorn.Config(
+        app=app,
+        host="0.0.0.0",
+        port=8000,
+        timeout_graceful_shutdown=5,  # Wait max 5 seconds for graceful shutdown
+    )
+    server = uvicorn.Server(config)
+    
+    # Handle SIGINT (Ctrl+C) to ensure clean shutdown
+    def handle_sigint(signum, frame):
+        logger.info("Received SIGINT, shutting down...")
+        server.should_exit = True
+    
+    signal.signal(signal.SIGINT, handle_sigint)
+    server.run()
+
+
+def dev():
+    """Start the FastAPI server with hot reload (development mode)."""
+    import uvicorn
+    uvicorn.run(
+        "scripts.python.server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=["agents/"],
+        timeout_graceful_shutdown=5,  # Wait max 5 seconds for graceful shutdown
+    )
 
 
 if __name__ == "__main__":

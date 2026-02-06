@@ -150,6 +150,16 @@ class EventBroadcaster:
             Number of active SSE connections
         """
         return len(self._connections)
+    
+    async def close_all_connections(self):
+        """Close all active SSE connections.
+        
+        Used during shutdown to ensure clean exit.
+        """
+        async with self._lock:
+            logger.info(f"Closing {len(self._connections)} SSE connections")
+            # Clear all connections - the generators will exit on next iteration
+            self._connections.clear()
 
 
 # Global broadcaster instance
