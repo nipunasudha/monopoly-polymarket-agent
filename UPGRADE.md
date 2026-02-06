@@ -128,6 +128,16 @@ Your codebase is a fork of the **official [Polymarket/agents](https://github.com
 
 ---
 
+## Development
+
+### Running Tests
+
+```bash
+uv run test-agents
+```
+
+This works from the project root. You can pass any pytest flags through, e.g. `uv run test-agents -v`.
+
 ## Verification Plan
 
 1.  **Phase 1**: Run `python -m agents.application.trade` — should produce structured JSON forecasts with Claude, web search context, and Kelly-sized positions (no actual execution)
