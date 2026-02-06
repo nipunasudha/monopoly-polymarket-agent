@@ -1,6 +1,6 @@
 # Testing Quick Start Guide
 
-## ✅ Phase 1 & 2 Complete: 181 Tests Passing
+## ✅ 193 Tests Passing
 
 All tests run in **~8 seconds** with **zero LLM API costs**.
 
@@ -21,23 +21,33 @@ uv run pytest tests/integration
 ### Quick Commands
 
 ```bash
-# Run all tests
+# Run all tests (193 tests, ~8s)
 uv run test-agents
 
-# Run with verbose output
-uv run test-agents -v
+# By test layer
+uv run test-agents tests/unit          # 42 unit tests
+uv run test-agents tests/integration  # 143 integration tests
+uv run test-agents tests/e2e         # 8 E2E tests
 
-# Run only fast tests (skip slow E2E)
-uv run test-agents -m "not slow"
+# By marker
+uv run test-agents -m unit           # Unit tests only
+uv run test-agents -m integration   # Integration tests only
+uv run test-agents -m "not slow"     # Skip slow tests
 
-# Run specific test layer
-uv run test-agents tests/unit          # Unit tests only
-uv run test-agents tests/integration   # Integration tests only
-uv run test-agents tests/e2e           # E2E tests only
+# Verbose output
+uv run test-agents -v                 # Verbose
+uv run test-agents -v -s              # Verbose + show prints
 
-# Run with coverage report
+# Coverage
 uv run test-agents --cov=agents --cov-report=html
 open htmlcov/index.html
+
+# Specific test file
+uv run test-agents tests/unit/test_utils.py
+uv run test-agents tests/integration/test_api.py
+
+# Specific test function
+uv run test-agents tests/unit/test_utils.py::TestParseCamelCase::test_simple_camel_case
 ```
 
 ## Test Structure
@@ -49,9 +59,14 @@ tests/
 │   ├── test_models.py        # Pydantic models
 │   └── test_parsers.py       # Parsing logic
 │
-├── integration/       # 23 tests - Mocked APIs
+├── integration/       # 143 tests - Mocked APIs
 │   ├── test_executor.py      # LLM integration
-│   └── test_search.py        # Search integration
+│   ├── test_search.py        # Search integration
+│   ├── test_database.py      # Database operations
+│   ├── test_api.py           # API endpoints
+│   ├── test_api_runner_integration.py  # API-Runner integration
+│   ├── test_dashboard.py     # Dashboard UI
+│   └── test_runner.py        # Background runner
 │
 ├── e2e/              # 8 tests - Full workflows
 │   └── test_forecast_workflow.py
@@ -66,16 +81,15 @@ tests/
 | Layer | Tests | Coverage | Speed |
 |-------|-------|----------|-------|
 | Unit | 42 | Utilities, models, parsers | ~2.4s |
-| Integration | 99 | LLM, search, database, API, dashboard | ~7.5s |
+| Integration | 143 | LLM, search, database, API, dashboard, runner | ~5.0s |
 | E2E | 8 | Full workflows (mocked) | ~0.3s |
-| **Total** | **153** | **Phase 1 & 2 complete** | **~5.0s** |
+| **Total** | **193** | **Phase 1 & 2 complete** | **~8s** |
 
 ## Key Features
 
 ✅ **Zero API Costs** - All LLM calls are mocked
-✅ **Fast Execution** - Complete suite runs in ~3.5 seconds
-✅ **100% Pass Rate** - All 76 tests passing
-✅ **Well Documented** - See `agents/tests/README.md`
+✅ **Fast Execution** - Complete suite runs in ~8 seconds
+✅ **100% Pass Rate** - All 193 tests passing
 ✅ **Easy to Run** - Single command: `uv run test-agents`
 
 ## What's Tested
@@ -122,8 +136,6 @@ tests/
 
 ## Documentation
 
-- **Detailed Guide**: `agents/tests/README.md`
-- **Phase 1 Summary**: `agents/tests/PHASE1_SUMMARY.md`
 - **Testing Strategy**: `UPGRADE.md` (Testing Strategy section)
 
 ## Common Issues
@@ -169,13 +181,6 @@ tests/e2e/test_forecast_workflow.py ........ PASSED                [100%]
 ======================== 76 passed in 3.48s ===========================
 ```
 
-## Next Steps
-
-1. **Run the tests**: `uv run test-agents`
-2. **Read the docs**: `agents/tests/README.md`
-3. **Add new tests**: Follow the patterns in existing test files
-4. **Phase 2**: Implement database and API tests
-
 ---
 
-**Questions?** See the detailed documentation in `agents/tests/README.md`
+**Remember**: Always use `uv run test-agents`, never `uv run pytest` directly!
