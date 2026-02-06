@@ -2,6 +2,10 @@
 name = "monopoly-agents"
 version = "0.1.0"
 description = "Monopoly Polymarket Agent System"
+license = "MIT"
+authors = [
+    { name = "Metarune Labs Pvt Ltd.", email = "hello@metarunelabs.dev" },
+]
 requires-python = ">=3.9.10"
 dependencies = [
     "chromadb>=0.5.5,<0.6",

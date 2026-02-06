@@ -1,4 +1,5 @@
-<!-- Monopoly Polymarket Agent System by metarunelabs.dev -->
+<!-- Monopoly Polymarket Agent System -->
+<!-- Copyright (c) 2026 Metarune Labs Pvt Ltd. (metarunelabs.dev) -->
 <!-- Forked from Polymarket/agents (MIT License) -->
 
 <!-- PROJECT LOGO -->
@@ -13,7 +14,7 @@
   <p align="center">
     Trade autonomously on Polymarket using AI Agents
     <br />
-    <em>by <a href="https://metarunelabs.dev">metarunelabs.dev</a></em>
+    <em>by <a href="https://metarunelabs.dev">Metarune Labs Pvt Ltd.</a></em>
     <br />
     <br />
     <a href="https://github.com/polymarket/agents">Upstream Repo</a>
@@ -25,7 +26,7 @@
 
 # Monopoly Agents
 
-Monopoly Polymarket Agent System is a developer framework and set of utilities for building AI trading agents for Polymarket, maintained by [metarunelabs.dev](https://metarunelabs.dev).
+Monopoly Polymarket Agent System is a developer framework and set of utilities for building AI trading agents for Polymarket, maintained by [Metarune Labs Pvt Ltd.](https://metarunelabs.dev).
 
 Based on the open-source [Polymarket Agents](https://github.com/polymarket/agents) project (MIT License). See [terms of service](#terms-of-service).
 
@@ -242,7 +243,7 @@ uv run pre-commit install
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for details.
 
-Originally developed by [Polymarket](https://github.com/polymarket/agents). Modified and maintained by [Metarune Labs](https://metarunelabs.dev).
+Originally developed by [Polymarket](https://github.com/polymarket/agents). Modified and maintained by [Metarune Labs Pvt Ltd.](https://metarunelabs.dev).
 
 # Contact
 
