@@ -45,6 +45,7 @@ packages = ["agents", "scripts"]
 
 [project.scripts]
 monopoly = "scripts.python.cli:app"
+test-agents = "scripts.python.test_runner:main"
 
 [dependency-groups]
 dev = [
