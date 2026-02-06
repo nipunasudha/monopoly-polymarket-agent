@@ -138,6 +138,252 @@ uv run test-agents
 
 This works from the project root. You can pass any pytest flags through, e.g. `uv run test-agents -v`.
 
+---
+
+## Testing Strategy
+
+### Testing Architecture Overview
+
+This system uses a **simplified testing pyramid** optimized for AI agent systems:
+
+```
+        /\
+       /E2E\      ← Few (5-10 tests) - Full agent workflows
+      /------\
+     /  INT   \   ← Moderate (20-30 tests) - Component integration
+    /----------\
+   /    UNIT    \ ← Many (50+ tests) - Pure functions, utilities
+  /--------------\
+```
+
+**Key Principle**: Over 70% of effort should test the **non-deterministic LLM components** (prompts, agent logic, decision-making), not just deterministic utilities. This inverts the common anti-pattern where only tools/utilities get tested.
+
+### Test Organization
+
+```
+tests/
+├── unit/              # Fast, isolated, deterministic
+│   ├── test_risk.py           # Kelly criterion math
+│   ├── test_parsers.py        # JSON/data parsing
+│   ├── test_models.py         # Pydantic validation
+│   └── test_utils.py          # Helper functions
+│
+├── integration/       # Component interactions
+│   ├── test_database.py       # SQLite persistence
+│   ├── test_search.py         # Tavily API calls (mocked)
+│   ├── test_polymarket.py     # CLOB API (mocked)
+│   ├── test_executor.py       # LLM prompt → structured output
+│   └── test_multi_agent.py    # Agent coordination
+│
+├── e2e/              # Full workflows (slow)
+│   ├── test_forecast_workflow.py    # Market → Forecast → Decision
+│   ├── test_trade_workflow.py       # Full trading cycle
+│   └── test_api_workflow.py         # Dashboard API endpoints
+│
+├── fixtures/         # Shared test data
+│   ├── sample_markets.json
+│   ├── sample_forecasts.json
+│   └── mock_responses/
+│
+└── conftest.py       # pytest configuration & fixtures
+```
+
+### Phase-by-Phase Test Implementation
+
+#### Phase 1: Foundation Tests (Start Here)
+
+**1.1 Unit Tests for Risk Management**
+```python
+# tests/unit/test_risk.py
+def test_kelly_criterion_calculation()
+def test_position_size_limits()
+def test_minimum_edge_threshold()
+def test_max_portfolio_exposure()
+```
+
+**1.2 Integration Tests for LLM Structured Output**
+```python
+# tests/integration/test_executor.py
+def test_superforecaster_returns_valid_json()
+def test_forecast_includes_all_required_fields()
+def test_confidence_score_in_valid_range()
+def test_reasoning_chain_not_empty()
+```
+
+**1.3 Integration Tests for Web Search**
+```python
+# tests/integration/test_search.py
+@pytest.mark.vcr  # Record/replay HTTP responses
+def test_tavily_search_returns_context()
+def test_search_context_injected_into_prompt()
+```
+
+**1.4 E2E Test for Basic Forecast**
+```python
+# tests/e2e/test_forecast_workflow.py
+def test_end_to_end_forecast_generation():
+    """Market question → Web search → LLM → Structured forecast"""
+    market = load_fixture("sample_markets.json")[0]
+    forecast = agent.generate_forecast(market)
+    assert forecast.probability > 0
+    assert forecast.reasoning is not None
+```
+
+#### Phase 2: Persistence & API Tests
+
+**2.1 Database Integration Tests**
+```python
+# tests/integration/test_database.py
+def test_save_and_retrieve_forecast()
+def test_trade_history_query()
+def test_portfolio_snapshot_calculation()
+def test_database_migration_idempotent()
+```
+
+**2.2 API Integration Tests**
+```python
+# tests/integration/test_api.py
+def test_get_markets_endpoint()
+def test_trigger_analysis_endpoint()
+def test_portfolio_endpoint_returns_valid_data()
+def test_websocket_log_streaming()
+```
+
+**2.3 E2E Dashboard Test**
+```python
+# tests/e2e/test_api_workflow.py
+def test_full_dashboard_workflow():
+    """Start agent → Analyze market → View results in API"""
+    client.post("/api/agent/start")
+    client.post("/api/markets/123/analyze")
+    response = client.get("/api/forecasts")
+    assert len(response.json()) > 0
+```
+
+#### Phase 3: Multi-Agent Tests
+
+**3.1 Multi-Agent Coordination Tests**
+```python
+# tests/integration/test_multi_agent.py
+def test_research_agent_gathers_data()
+def test_analyst_agent_produces_forecast()
+def test_aggregator_combines_multiple_forecasts()
+def test_risk_manager_rejects_low_edge_trades()
+```
+
+**3.2 E2E Multi-Agent Workflow**
+```python
+# tests/e2e/test_trade_workflow.py
+def test_full_multi_agent_trading_cycle():
+    """Research → Analyze → Aggregate → Risk Check → Execute"""
+    market = load_fixture("sample_markets.json")[0]
+    trade_decision = multi_agent_pipeline.execute(market)
+    assert trade_decision.approved_by_risk_manager
+    assert trade_decision.position_size > 0
+```
+
+### Testing Best Practices
+
+**1. Mock External APIs (except in E2E)**
+- Use `pytest-vcr` to record/replay HTTP responses
+- Mock Polymarket CLOB API calls in integration tests
+- Use real APIs only in E2E tests (with test accounts)
+
+**2. Test LLM Outputs Structurally, Not Semantically**
+```python
+# ✅ Good - Test structure
+assert isinstance(forecast.probability, float)
+assert 0 <= forecast.probability <= 1
+assert len(forecast.reasoning) > 50
+
+# ❌ Bad - Test specific content (too brittle)
+assert "Biden" in forecast.reasoning
+```
+
+**3. Use Fixtures for Consistent Test Data**
+```python
+# conftest.py
+@pytest.fixture
+def sample_market():
+    return {
+        "question": "Will Bitcoin reach $100k by end of 2026?",
+        "current_price": 0.45,
+        "liquidity": 50000
+    }
+```
+
+**4. Separate Fast vs Slow Tests**
+```bash
+# Run only fast tests (unit + integration)
+pytest -m "not slow"
+
+# Run all tests including E2E
+pytest
+```
+
+**5. Test Calibration Over Time**
+```python
+# tests/integration/test_calibration.py
+def test_brier_score_calculation()
+def test_calibration_plot_data_format()
+def test_forecast_accuracy_tracking()
+```
+
+### Running Tests
+
+```bash
+# All tests
+uv run test-agents
+
+# Specific layer
+uv run pytest tests/unit
+uv run pytest tests/integration
+uv run pytest tests/e2e
+
+# With coverage
+uv run pytest --cov=agents --cov-report=html
+
+# Verbose with output
+uv run test-agents -v -s
+
+# Fast tests only (skip E2E)
+uv run pytest -m "not slow"
+```
+
+### Test Metrics & Goals
+
+| Metric | Target |
+|--------|--------|
+| **Unit test coverage** | >80% of `utils/`, `risk.py` |
+| **Integration test coverage** | >60% of `executor.py`, `trade.py` |
+| **E2E test coverage** | 5-10 critical workflows |
+| **Test execution time** | <5s (unit), <30s (integration), <2min (E2E) |
+| **CI/CD** | All tests pass before merge |
+
+### Critical Testing Focus Areas
+
+1. **LLM Prompt Testing** (often neglected, highest value)
+   - Validate structured output format
+   - Test edge cases (missing data, ambiguous questions)
+   - Verify reasoning chain completeness
+
+2. **Risk Management Logic** (highest financial impact)
+   - Kelly criterion edge cases
+   - Position limit enforcement
+   - Portfolio exposure calculations
+
+3. **Data Pipeline Integrity** (prevents silent failures)
+   - Market data parsing
+   - Search result integration
+   - Database persistence
+
+4. **Multi-Agent Coordination** (Phase 3 complexity)
+   - Agent communication protocols
+   - Aggregation logic
+   - Failure handling (one agent fails)
+
+---
+
 ## Verification Plan
 
 1.  **Phase 1**: Run `python -m agents.application.trade` — should produce structured JSON forecasts with Claude, web search context, and Kelly-sized positions (no actual execution)
