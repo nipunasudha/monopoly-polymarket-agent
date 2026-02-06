@@ -1,0 +1,80 @@
+[
+  {
+    "market_id": 12345,
+    "question": "Will Bitcoin reach $100k by end of 2026?",
+    "probability": 0.35,
+    "confidence": 0.70,
+    "base_rate": 0.30,
+    "key_factors": [
+      "Historical Bitcoin price volatility",
+      "Current adoption trends",
+      "Regulatory environment",
+      "Institutional investment patterns"
+    ],
+    "evidence_for": [
+      "Increasing institutional adoption",
+      "Bitcoin ETF approvals in major markets",
+      "Growing retail interest",
+      "Limited supply dynamics"
+    ],
+    "evidence_against": [
+      "Regulatory uncertainty in key markets",
+      "Market volatility and corrections",
+      "Competition from other cryptocurrencies",
+      "Macroeconomic headwinds"
+    ],
+    "reasoning": "Based on historical trends and current market conditions, there is a moderate probability of Bitcoin reaching $100k by end of 2026. While institutional adoption continues to grow and supply remains limited, regulatory uncertainty and market volatility present significant risks. The base rate of 30% reflects historical price appreciation patterns, adjusted upward to 35% based on recent positive developments in the regulatory landscape."
+  },
+  {
+    "market_id": 12346,
+    "question": "Will Ethereum surpass $10k in 2026?",
+    "probability": 0.28,
+    "confidence": 0.65,
+    "base_rate": 0.25,
+    "key_factors": [
+      "Ethereum network upgrades",
+      "DeFi ecosystem growth",
+      "Layer 2 scaling solutions",
+      "Competition from other smart contract platforms"
+    ],
+    "evidence_for": [
+      "Successful transition to proof-of-stake",
+      "Growing DeFi and NFT ecosystems",
+      "Institutional interest in Ethereum",
+      "Layer 2 scaling improvements"
+    ],
+    "evidence_against": [
+      "Strong competition from Solana, Avalanche",
+      "Gas fee concerns despite improvements",
+      "Regulatory scrutiny of DeFi",
+      "Market correlation with Bitcoin"
+    ],
+    "reasoning": "Ethereum has strong fundamentals with its proof-of-stake transition and growing ecosystem. However, reaching $10k represents a significant price increase that would require sustained market momentum and broader crypto adoption. Competition from other platforms and regulatory concerns temper the probability to 28%."
+  },
+  {
+    "market_id": 12347,
+    "question": "Will the S&P 500 reach 7000 by end of Q2 2026?",
+    "probability": 0.48,
+    "confidence": 0.75,
+    "base_rate": 0.45,
+    "key_factors": [
+      "Federal Reserve monetary policy",
+      "Corporate earnings growth",
+      "Inflation trends",
+      "Geopolitical stability"
+    ],
+    "evidence_for": [
+      "Strong corporate earnings",
+      "Potential Fed rate cuts",
+      "AI-driven productivity gains",
+      "Historical market resilience"
+    ],
+    "evidence_against": [
+      "Elevated valuations",
+      "Geopolitical tensions",
+      "Potential recession risks",
+      "Interest rate uncertainty"
+    ],
+    "reasoning": "The S&P 500 reaching 7000 by Q2 2026 is nearly a coin flip. Current valuations are elevated but not extreme, and corporate earnings remain strong. The key variables are Fed policy and economic growth. If the Fed successfully navigates a soft landing and earnings continue to grow, 7000 is achievable. However, recession risks and geopolitical uncertainties create significant downside risk."
+  }
+]

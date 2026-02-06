@@ -1,0 +1,38 @@
+[
+  {
+    "id": 12345,
+    "question": "Will Bitcoin reach $100k by end of 2026?",
+    "description": "This market resolves to Yes if Bitcoin (BTC) reaches or exceeds $100,000 USD on any major exchange by December 31, 2026, 11:59 PM UTC.",
+    "outcomes": ["Yes", "No"],
+    "outcome_prices": [0.45, 0.55],
+    "liquidity": 50000.0,
+    "volume": 125000.0,
+    "active": true,
+    "closed": false,
+    "endDate": "2026-12-31T23:59:59Z"
+  },
+  {
+    "id": 12346,
+    "question": "Will Ethereum surpass $10k in 2026?",
+    "description": "This market resolves to Yes if Ethereum (ETH) reaches or exceeds $10,000 USD on any major exchange during 2026.",
+    "outcomes": ["Yes", "No"],
+    "outcome_prices": [0.38, 0.62],
+    "liquidity": 35000.0,
+    "volume": 85000.0,
+    "active": true,
+    "closed": false,
+    "endDate": "2026-12-31T23:59:59Z"
+  },
+  {
+    "id": 12347,
+    "question": "Will the S&P 500 reach 7000 by end of Q2 2026?",
+    "description": "This market resolves to Yes if the S&P 500 index closes at or above 7000 by June 30, 2026.",
+    "outcomes": ["Yes", "No"],
+    "outcome_prices": [0.52, 0.48],
+    "liquidity": 75000.0,
+    "volume": 200000.0,
+    "active": true,
+    "closed": false,
+    "endDate": "2026-06-30T23:59:59Z"
+  }
+]
