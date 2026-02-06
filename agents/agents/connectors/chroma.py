@@ -2,9 +2,27 @@ import json
 import os
 import time
 
-from langchain_openai import OpenAIEmbeddings
+import torch
+from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.vectorstores.chroma import Chroma
+from langchain_core.embeddings import Embeddings
+
+_DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
+
+
+class LocalEmbeddings(Embeddings):
+    """Local embedding model using sentence-transformers with MPS (Apple GPU) acceleration."""
+
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        self._model = SentenceTransformer(model_name, device=_DEVICE)
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self._model.encode(texts, convert_to_numpy=True).tolist()
+
+    def embed_query(self, text: str) -> list[float]:
+        return self._model.encode([text], convert_to_numpy=True)[0].tolist()
+
 
 from agents.polymarket.gamma import GammaMarketClient
 from agents.utils.objects import SimpleEvent, SimpleMarket
@@ -24,7 +42,7 @@ class PolymarketRAG:
         )
         loaded_docs = loader.load()
 
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = LocalEmbeddings()
         Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory
         )
@@ -47,7 +65,7 @@ class PolymarketRAG:
     def query_local_markets_rag(
         self, local_directory=None, query=None
     ) -> "list[tuple]":
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = LocalEmbeddings()
         local_db = Chroma(
             persist_directory=local_directory, embedding_function=embedding_function
         )
@@ -80,7 +98,7 @@ class PolymarketRAG:
             metadata_func=metadata_func,
         )
         loaded_docs = loader.load()
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = LocalEmbeddings()
         vector_db_directory = f"{local_events_directory}/chroma"
         local_db = Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory
@@ -117,7 +135,7 @@ class PolymarketRAG:
             metadata_func=metadata_func,
         )
         loaded_docs = loader.load()
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
+        embedding_function = LocalEmbeddings()
         vector_db_directory = f"{local_events_directory}/chroma"
         local_db = Chroma.from_documents(
             loaded_docs, embedding_function, persist_directory=vector_db_directory
