@@ -7,8 +7,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from datetime import datetime
+import logging
 
 from agents.connectors.database import Database
+from agents.application.runner import get_agent_runner
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Monopoly Agents API",
@@ -25,6 +31,27 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "dashboard" / "templates"))
 # It's ignored by git (see .gitignore)
 db = Database()  # Default: sqlite:///monopoly_agents.db
 db.create_tables()
+
+# Initialize agent runner
+agent_runner = get_agent_runner()
+
+
+# Lifecycle events
+@app.on_event("startup")
+async def startup_event():
+    """Run on application startup."""
+    logger.info("Application starting up...")
+    logger.info("Agent runner initialized (not started)")
+    logger.info("Use POST /api/agent/start to begin automated trading")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Run on application shutdown."""
+    logger.info("Application shutting down...")
+    if agent_runner.state.value == "running":
+        await agent_runner.stop()
+    logger.info("Agent runner stopped")
 
 
 # Pydantic models for API
@@ -66,11 +93,27 @@ class PortfolioResponse(BaseModel):
 
 
 class AgentStatus(BaseModel):
+    state: str
     running: bool
     last_run: Optional[str]
     next_run: Optional[str]
+    interval_minutes: int
+    run_count: int
+    error_count: int
+    last_error: Optional[str]
     total_forecasts: int
     total_trades: int
+
+
+class AgentRunResult(BaseModel):
+    success: bool
+    started_at: str
+    completed_at: str
+    error: Optional[str]
+
+
+class IntervalUpdate(BaseModel):
+    interval_minutes: int
 
 
 # Dashboard Routes (HTML)
@@ -294,33 +337,105 @@ def get_portfolio_history(limit: int = 30):
 
 # Agent control endpoints
 @app.get("/api/agent/status", response_model=AgentStatus)
-def get_agent_status():
+async def get_agent_status():
     """Get agent status."""
+    # Get runner status
+    runner_status = agent_runner.get_status()
+    
     # Get counts from database
     forecasts = db.get_recent_forecasts(limit=1000)
     trades = db.get_recent_trades(limit=1000)
     
     return AgentStatus(
-        running=False,  # TODO: Implement actual status tracking
-        last_run=None,
-        next_run=None,
+        state=runner_status["state"],
+        running=runner_status["running"],
+        last_run=runner_status["last_run"],
+        next_run=runner_status["next_run"],
+        interval_minutes=runner_status["interval_minutes"],
+        run_count=runner_status["run_count"],
+        error_count=runner_status["error_count"],
+        last_error=runner_status["last_error"],
         total_forecasts=len(forecasts),
         total_trades=len(trades),
     )
 
 
 @app.post("/api/agent/start")
-def start_agent():
-    """Start the agent."""
-    # TODO: Implement agent start logic
-    return {"status": "started", "message": "Agent start not yet implemented"}
+async def start_agent():
+    """Start the agent background runner."""
+    if agent_runner.state.value == "running":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agent is already running"
+        )
+    
+    await agent_runner.start()
+    
+    return {
+        "status": "started",
+        "message": f"Agent started with {agent_runner.interval_minutes} minute interval",
+        "next_run": agent_runner.next_run.isoformat() if agent_runner.next_run else None,
+    }
 
 
 @app.post("/api/agent/stop")
-def stop_agent():
-    """Stop the agent."""
-    # TODO: Implement agent stop logic
-    return {"status": "stopped", "message": "Agent stop not yet implemented"}
+async def stop_agent():
+    """Stop the agent background runner."""
+    if agent_runner.state.value != "running":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agent is not running"
+        )
+    
+    await agent_runner.stop()
+    
+    return {
+        "status": "stopped",
+        "message": "Agent stopped successfully",
+    }
+
+
+@app.post("/api/agent/pause")
+async def pause_agent():
+    """Pause the agent background runner."""
+    await agent_runner.pause()
+    return {"status": "paused", "message": "Agent paused"}
+
+
+@app.post("/api/agent/resume")
+async def resume_agent():
+    """Resume the agent background runner."""
+    await agent_runner.resume()
+    return {"status": "resumed", "message": "Agent resumed"}
+
+
+@app.post("/api/agent/run-once", response_model=AgentRunResult)
+async def run_agent_once():
+    """Manually trigger a single agent run."""
+    result = await agent_runner.run_once()
+    return AgentRunResult(**result)
+
+
+@app.put("/api/agent/interval")
+async def update_interval(interval: IntervalUpdate):
+    """Update agent run interval.
+    
+    Args:
+        interval: New interval in minutes
+    """
+    if interval.interval_minutes < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Interval must be at least 1 minute"
+        )
+    
+    agent_runner.set_interval(interval.interval_minutes)
+    
+    return {
+        "status": "updated",
+        "interval_minutes": interval.interval_minutes,
+        "message": f"Interval updated to {interval.interval_minutes} minutes",
+    }
 
 
 # Market analysis endpoint

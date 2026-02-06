@@ -98,16 +98,12 @@ Your codebase is a fork of the **official [Polymarket/agents](https://github.com
     -   **Settings**: LLM model, risk params, scheduler frequency
 -   Charts via Chart.js (CDN)
 
-**2.4 — Background Agent Runner** ✅ COMPLETE
+**2.4 — Background Agent Runner**
 
-- ✅ New file: **`agents/application/runner.py`** (226 lines)
-- ✅ Replaced broken **`cron.py`** with async **`AgentRunner`** that integrates with FastAPI's event loop
-- ✅ Configurable interval (default: 60 minutes, adjustable via API)
+-   New file: `agents/application/runner.py`
+-   Replace broken `cron.py` with async `AgentRunner` that integrates with FastAPI's event loop
+-   Configurable interval (not just weekly Monday)
 
-- ✅ State management: STOPPED, RUNNING, PAUSED, ERROR
-- ✅ Endpoints: start, stop, pause, resume, run-once, update interval
-- ✅ Tests: **`tests/integration/test_runner.py`** (22 tests)
-- ✅ Total test count: 181 (all passing)
 ### Phase 3: Multi-Agent Architecture
 
 **3.1 — Specialized Agent Roles**

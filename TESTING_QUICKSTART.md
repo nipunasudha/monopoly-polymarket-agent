@@ -1,8 +1,8 @@
 # Testing Quick Start Guide
 
-## ✅ Phase 1 & 2 Complete: 153 Tests Passing
+## ✅ Phase 1 & 2 Complete: 181 Tests Passing
 
-All tests run in **~5 seconds** with **zero LLM API costs**.
+All tests run in **~8 seconds** with **zero LLM API costs**.
 
 ## Running Tests
 
@@ -106,8 +106,13 @@ tests/
   - Trades page
   - Navigation and responsive design
 
-### ⏳ Phase 2 Remaining (TODO)
-- Background agent runner (Phase 2.4)
+### ✅ Phase 2.4: Background Agent Runner (COMPLETE)
+- **22 tests** covering async agent runner
+- State management (STOPPED, RUNNING, PAUSED, ERROR)
+- Lifecycle control (start, stop, pause, resume)
+- Configurable intervals
+- Manual triggers
+- Error tracking
 
 ### ⏳ Phase 3 (TODO)
 - Multi-agent coordination

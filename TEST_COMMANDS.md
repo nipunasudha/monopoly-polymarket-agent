@@ -3,12 +3,12 @@
 ## ✅ Correct Commands (Use These)
 
 ```bash
-# All tests (76 tests, ~3.5s)
+# All tests (181 tests, ~8s)
 uv run test-agents
 
 # Specific test layers
 uv run test-agents tests/unit          # 42 unit tests
-uv run test-agents tests/integration   # 23 integration tests
+uv run test-agents tests/integration   # 131 integration tests
 uv run test-agents tests/e2e           # 8 E2E tests
 
 # By marker

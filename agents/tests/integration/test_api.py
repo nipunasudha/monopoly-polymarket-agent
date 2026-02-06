@@ -3,6 +3,7 @@ Integration tests for FastAPI endpoints.
 """
 import pytest
 import json
+from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from scripts.python.server import app, db
 
@@ -19,8 +20,19 @@ def setup_test_db():
     # Drop and recreate tables for each test
     db.drop_tables()
     db.create_tables()
+    
     yield
-    # Cleanup
+    
+    # Cleanup: ensure agent is stopped after each test
+    from agents.application.runner import get_agent_runner
+    runner = get_agent_runner()
+    if runner.state.value == "running":
+        # Force stop synchronously
+        runner.state = runner.state.__class__.STOPPED
+        if runner.task:
+            runner.task.cancel()
+    
+    # Cleanup database
     db.drop_tables()
 
 
@@ -461,3 +473,181 @@ class TestAPIResponseFormats:
         assert isinstance(data["balance"], float)
         assert isinstance(data["total_value"], float)
         assert isinstance(data["open_positions"], int)
+
+
+@pytest.mark.integration
+class TestAgentControlEndpoints:
+    """Test agent control API endpoints."""
+
+    def test_agent_status_endpoint(self, client, setup_test_db):
+        """Test GET /api/agent/status."""
+        response = client.get("/api/agent/status")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Check all required fields
+        assert "state" in data
+        assert "running" in data
+        assert "last_run" in data
+        assert "next_run" in data
+        assert "interval_minutes" in data
+        assert "run_count" in data
+        assert "error_count" in data
+        assert "last_error" in data
+        assert "total_forecasts" in data
+        assert "total_trades" in data
+        
+        # Check types and values
+        assert isinstance(data["state"], str)
+        assert data["state"] in ["stopped", "running", "paused", "error"]
+        assert isinstance(data["running"], bool)
+        assert isinstance(data["interval_minutes"], int)
+        assert isinstance(data["run_count"], int)
+        assert isinstance(data["error_count"], int)
+
+    def test_start_agent_endpoint_response_format(self, client, setup_test_db):
+        """Test POST /api/agent/start response format."""
+        # Mock the agent runner to avoid actually starting it
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            mock_runner.state.value = "stopped"
+            mock_runner.interval_minutes = 60
+            mock_runner.next_run = None
+            
+            # Mock the start method
+            async def mock_start():
+                mock_runner.state.value = "running"
+            mock_runner.start = mock_start
+            
+            response = client.post("/api/agent/start")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            assert "status" in data
+            assert "message" in data
+
+    def test_start_agent_already_running_error(self, client, setup_test_db):
+        """Test starting agent when already running returns error."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            mock_runner.state.value = "running"
+            
+            response = client.post("/api/agent/start")
+            
+            assert response.status_code == 400
+            assert "detail" in response.json()
+
+    def test_stop_agent_endpoint_response_format(self, client, setup_test_db):
+        """Test POST /api/agent/stop response format."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            mock_runner.state.value = "running"
+            
+            async def mock_stop():
+                mock_runner.state.value = "stopped"
+            mock_runner.stop = mock_stop
+            
+            response = client.post("/api/agent/stop")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            assert "status" in data
+            assert "message" in data
+
+    def test_stop_agent_not_running_error(self, client, setup_test_db):
+        """Test stopping agent when not running returns error."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            mock_runner.state.value = "stopped"
+            
+            response = client.post("/api/agent/stop")
+            
+            assert response.status_code == 400
+            assert "detail" in response.json()
+
+    def test_pause_agent_endpoint_response_format(self, client, setup_test_db):
+        """Test POST /api/agent/pause response format."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            async def mock_pause():
+                pass
+            mock_runner.pause = mock_pause
+            
+            response = client.post("/api/agent/pause")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            assert "status" in data
+            assert data["status"] == "paused"
+
+    def test_resume_agent_endpoint_response_format(self, client, setup_test_db):
+        """Test POST /api/agent/resume response format."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            async def mock_resume():
+                pass
+            mock_runner.resume = mock_resume
+            
+            response = client.post("/api/agent/resume")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            assert "status" in data
+            assert data["status"] == "resumed"
+
+    def test_run_once_endpoint(self, client, setup_test_db):
+        """Test POST /api/agent/run-once."""
+        with patch("scripts.python.server.agent_runner") as mock_runner:
+            # Mock the run_once method
+            async def mock_run_once():
+                return {
+                    "success": True,
+                    "started_at": "2026-02-07T00:00:00",
+                    "completed_at": "2026-02-07T00:00:01",
+                    "error": None
+                }
+            mock_runner.run_once = mock_run_once
+            
+            response = client.post("/api/agent/run-once")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            assert "success" in data
+            assert "started_at" in data
+            assert "completed_at" in data
+            assert "error" in data
+
+    def test_update_interval_endpoint(self, client, setup_test_db):
+        """Test PUT /api/agent/interval."""
+        response = client.put(
+            "/api/agent/interval",
+            json={"interval_minutes": 120}
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert "status" in data
+        assert data["status"] == "updated"
+        assert data["interval_minutes"] == 120
+
+    def test_update_interval_invalid(self, client, setup_test_db):
+        """Test updating interval with invalid value."""
+        response = client.put(
+            "/api/agent/interval",
+            json={"interval_minutes": 0}
+        )
+        
+        assert response.status_code == 400
+        assert "at least 1 minute" in response.json()["detail"].lower()
+
+    def test_agent_status_reflects_database_counts(self, client, sample_forecast_in_db, sample_trade_in_db):
+        """Test that agent status includes database counts."""
+        response = client.get("/api/agent/status")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Should have at least the fixtures we created
+        assert data["total_forecasts"] >= 1
+        assert data["total_trades"] >= 1
