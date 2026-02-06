@@ -221,6 +221,16 @@ async def dashboard_forecasts(request: Request):
     })
 
 
+@app.get("/agent", response_class=HTMLResponse)
+async def agent_control_page(request: Request):
+    """Agent control panel page."""
+    status_data = agent_runner.get_status()
+    return templates.TemplateResponse("agent.html", {
+        "request": request,
+        "status": status_data
+    })
+
+
 # API Root endpoint
 @app.get("/api")
 def read_root():
@@ -550,6 +560,69 @@ def get_agent_status_partial(request: Request):
     )
 
 
+@app.get("/partials/agent-controls", response_class=HTMLResponse)
+def get_agent_controls_partial(request: Request):
+    """Get agent controls partial based on current state."""
+    status_data = agent_runner.get_status()
+    return templates.TemplateResponse(
+        "agent_controls.html",
+        {"request": request, "status": status_data}
+    )
+
+
+@app.get("/partials/agent-stats", response_class=HTMLResponse)
+def get_agent_stats_partial(request: Request):
+    """Get agent statistics partial."""
+    status_data = agent_runner.get_status()
+    forecasts = db.get_recent_forecasts(limit=1000)
+    trades = db.get_recent_trades(limit=1000)
+    
+    stats = {
+        "run_count": status_data["run_count"],
+        "error_count": status_data["error_count"],
+        "success_rate": ((status_data["run_count"] - status_data["error_count"]) / status_data["run_count"] * 100) if status_data["run_count"] > 0 else 0,
+        "total_forecasts": len(forecasts),
+        "total_trades": len(trades),
+        "last_run": status_data["last_run"],
+        "next_run": status_data["next_run"],
+    }
+    return templates.TemplateResponse(
+        "agent_stats.html",
+        {"request": request, "stats": stats}
+    )
+
+
+@app.get("/partials/activity-feed", response_class=HTMLResponse)
+def get_activity_feed_partial(request: Request, limit: int = 20):
+    """Get recent activity feed."""
+    # Combine forecasts and trades into activity feed
+    forecasts = db.get_recent_forecasts(limit=limit)
+    trades = db.get_recent_trades(limit=limit)
+    
+    activities = []
+    for f in forecasts:
+        activities.append({
+            "type": "forecast_created",
+            "timestamp": f.created_at,
+            "data": f.to_dict()
+        })
+    for t in trades:
+        activities.append({
+            "type": "trade_executed",
+            "timestamp": t.created_at,
+            "data": t.to_dict()
+        })
+    
+    # Sort by timestamp descending
+    activities.sort(key=lambda x: x["timestamp"], reverse=True)
+    activities = activities[:limit]
+    
+    return templates.TemplateResponse(
+        "activity_feed.html",
+        {"request": request, "activities": activities}
+    )
+
+
 @app.put("/api/agent/interval")
 async def update_interval(interval: IntervalUpdate):
     """Update agent run interval.
@@ -564,6 +637,29 @@ async def update_interval(interval: IntervalUpdate):
         )
     
     agent_runner.set_interval(interval.interval_minutes)
+    
+    return {
+        "status": "updated",
+        "interval_minutes": interval.interval_minutes,
+        "message": f"Interval updated to {interval.interval_minutes} minutes",
+    }
+
+
+@app.post("/api/agent/interval")
+async def update_interval_post(interval: IntervalUpdate):
+    """Update agent run interval (POST version for HTMX).
+    
+    Args:
+        interval: New interval in minutes
+    """
+    if interval.interval_minutes < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Interval must be at least 1 minute"
+        )
+    
+    agent_runner.set_interval(interval.interval_minutes)
+    await agent_runner._emit_status_changed()
     
     return {
         "status": "updated",

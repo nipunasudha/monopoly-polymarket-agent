@@ -1,0 +1,71 @@
+{# Reusable activity item component #}
+{# Parameters: activity (dict with type, timestamp, data) #}
+<div class="flex items-start space-x-3 py-3">
+    <div class="flex-shrink-0">
+        {% if activity.type == 'forecast_created' %}
+        <div class="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+            <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </div>
+        {% elif activity.type == 'trade_executed' %}
+        <div class="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
+            <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+            </svg>
+        </div>
+        {% elif activity.type == 'agent_started' or activity.type == 'agent_status_changed' %}
+        <div class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
+            <svg class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+        </div>
+        {% else %}
+        <div class="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg class="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </div>
+        {% endif %}
+    </div>
+    <div class="flex-1 min-w-0">
+        <div class="flex items-center justify-between">
+            <p class="text-sm font-medium text-gray-900">
+                {% if activity.type == 'forecast_created' %}
+                Forecast Created
+                {% elif activity.type == 'trade_executed' %}
+                Trade Executed
+                {% elif activity.type == 'agent_started' %}
+                Agent Started
+                {% elif activity.type == 'agent_status_changed' %}
+                Agent Status Changed
+                {% else %}
+                {{ activity.type | replace('_', ' ') | title }}
+                {% endif %}
+            </p>
+            <p class="text-xs text-gray-500">
+                {{ activity.timestamp }}
+            </p>
+        </div>
+        <div class="mt-1 text-sm text-gray-600">
+            {% if activity.type == 'forecast_created' %}
+                <p class="truncate">{{ activity.data.market_question }}</p>
+                <p class="text-xs text-gray-500 mt-1">
+                    Probability: {{ (activity.data.probability * 100) | round(1) }}% | 
+                    Confidence: {{ (activity.data.confidence * 100) | round(1) }}%
+                </p>
+            {% elif activity.type == 'trade_executed' %}
+                <p class="truncate">{{ activity.data.market_question }}</p>
+                <p class="text-xs text-gray-500 mt-1">
+                    {{ activity.data.side | upper }} | 
+                    Size: ${{ activity.data.size | round(2) }} | 
+                    Status: {{ activity.data.status }}
+                </p>
+            {% elif activity.type == 'agent_status_changed' %}
+                <p>Status: {{ activity.data.state | title }}</p>
+            {% else %}
+                <p>{{ activity.data }}</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
