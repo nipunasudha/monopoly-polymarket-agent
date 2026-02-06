@@ -1,0 +1,28 @@
+{# Partial: Agent status indicator for HTMX swapping #}
+<div class="flex items-center space-x-3">
+    <div class="flex-shrink-0">
+        {% if status.running %}
+        <div class="h-3 w-3 rounded-full bg-green-400 animate-pulse"></div>
+        {% elif status.state == 'paused' %}
+        <div class="h-3 w-3 rounded-full bg-yellow-400"></div>
+        {% elif status.state == 'error' %}
+        <div class="h-3 w-3 rounded-full bg-red-400"></div>
+        {% else %}
+        <div class="h-3 w-3 rounded-full bg-gray-400"></div>
+        {% endif %}
+    </div>
+    <div>
+        <p class="text-sm font-medium text-gray-900">
+            Agent Status: 
+            <span class="{% if status.running %}text-green-600{% elif status.state == 'paused' %}text-yellow-600{% elif status.state == 'error' %}text-red-600{% else %}text-gray-600{% endif %}">
+                {{ status.state | title }}
+            </span>
+        </p>
+        {% if status.last_run %}
+        <p class="text-xs text-gray-500">Last run: {{ status.last_run }}</p>
+        {% endif %}
+        {% if status.next_run and status.running %}
+        <p class="text-xs text-gray-500">Next run: {{ status.next_run }}</p>
+        {% endif %}
+    </div>
+</div>

@@ -144,6 +144,9 @@ class AgentRunner:
         self.state = AgentState.RUNNING
         self.task = asyncio.create_task(self._run_loop())
         logger.info("Agent runner started")
+        
+        # Emit status change event
+        await self._emit_status_changed()
     
     async def stop(self):
         """Stop the agent runner."""
@@ -152,6 +155,9 @@ class AgentRunner:
             return
         
         self.state = AgentState.STOPPED
+        
+        # Emit status change event
+        await self._emit_status_changed()
         
         if self.task:
             self.task.cancel()
@@ -171,6 +177,9 @@ class AgentRunner:
         
         self.state = AgentState.PAUSED
         logger.info("Agent runner paused")
+        
+        # Emit status change event
+        await self._emit_status_changed()
     
     async def resume(self):
         """Resume the agent runner."""
@@ -180,6 +189,9 @@ class AgentRunner:
         
         self.state = AgentState.RUNNING
         logger.info("Agent runner resumed")
+        
+        # Emit status change event
+        await self._emit_status_changed()
     
     async def run_once(self) -> dict:
         """Run agent once immediately (manual trigger).
@@ -198,6 +210,15 @@ class AgentRunner:
         """
         self.interval_minutes = minutes
         logger.info(f"Interval updated to {minutes} minutes")
+    
+    async def _emit_status_changed(self):
+        """Emit agent status changed event."""
+        try:
+            from agents.connectors.events import get_broadcaster
+            broadcaster = get_broadcaster()
+            await broadcaster.emit_agent_status_changed(self.get_status())
+        except Exception as e:
+            logger.warning(f"Failed to emit status change event: {e}")
 
 
 # Global agent runner instance

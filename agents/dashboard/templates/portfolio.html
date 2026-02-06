@@ -11,7 +11,11 @@
     </div>
 
     <!-- Stats Grid -->
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    <div id="portfolio-stats" 
+         class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4"
+         hx-get="/partials/portfolio-stats"
+         hx-trigger="sse:portfolio_updated"
+         hx-swap="outerHTML">
         <!-- Balance Card -->
         <div class="bg-white overflow-hidden shadow rounded-lg">
             <div class="p-5">
@@ -103,36 +107,38 @@
             <h3 class="text-lg font-medium text-gray-900">Recent Activity</h3>
         </div>
         <div class="px-6 py-4">
-            {% if recent_trades %}
             <div class="flow-root">
-                <ul class="-my-5 divide-y divide-gray-200">
-                    {% for trade in recent_trades %}
-                    <li class="py-4">
-                        <div class="flex items-center space-x-4">
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-gray-900 truncate">
-                                    {{ trade.market_question }}
-                                </p>
-                                <p class="text-sm text-gray-500">
-                                    {{ trade.outcome }} • {{ trade.side }} • ${{ trade.size | round(2) }}
-                                </p>
+                <ul id="recent-trades-list" 
+                    class="-my-5 divide-y divide-gray-200"
+                    hx-get="/partials/trade-list?limit=5"
+                    hx-trigger="sse:trade_executed"
+                    hx-swap="innerHTML">
+                    {% if recent_trades %}
+                        {% for trade in recent_trades %}
+                        <li class="py-4">
+                            <div class="flex items-center space-x-4">
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate">
+                                        {{ trade.market_question }}
+                                    </p>
+                                    <p class="text-sm text-gray-500">
+                                        {{ trade.outcome }} • {{ trade.side }} • ${{ trade.size | round(2) }}
+                                    </p>
+                                </div>
+                                <div>
+                                    {% set status = trade.status %}
+                                    {% include "components/status_badge.html" with context %}
+                                </div>
                             </div>
-                            <div>
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                    {% if trade.status == 'executed' %}bg-green-100 text-green-800
-                                    {% elif trade.status == 'pending' %}bg-yellow-100 text-yellow-800
-                                    {% else %}bg-red-100 text-red-800{% endif %}">
-                                    {{ trade.status }}
-                                </span>
-                            </div>
-                        </div>
-                    </li>
-                    {% endfor %}
+                        </li>
+                        {% endfor %}
+                    {% else %}
+                        <li class="py-4">
+                            <p class="text-sm text-gray-500 text-center">No recent trades</p>
+                        </li>
+                    {% endif %}
                 </ul>
             </div>
-            {% else %}
-            <p class="text-sm text-gray-500 text-center py-4">No recent trades</p>
-            {% endif %}
         </div>
     </div>
 </div>

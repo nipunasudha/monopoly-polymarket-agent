@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from contextlib import contextmanager
+import asyncio
 
 Base = declarative_base()
 
@@ -175,7 +176,21 @@ class Database:
             session.refresh(forecast)
             # Expunge to detach from session so it can be used after session closes
             session.expunge(forecast)
+            
+            # Emit event for realtime updates
+            self._emit_forecast_created(forecast)
+            
             return forecast
+    
+    def _emit_forecast_created(self, forecast: ForecastRecord):
+        """Emit forecast created event (non-blocking)."""
+        try:
+            from agents.connectors.events import get_broadcaster
+            broadcaster = get_broadcaster()
+            asyncio.create_task(broadcaster.emit_forecast_created(forecast.to_dict()))
+        except Exception:
+            # Don't fail database operation if event emission fails
+            pass
     
     def get_forecast(self, forecast_id: int) -> Optional[ForecastRecord]:
         """Get a forecast by ID.
@@ -244,7 +259,20 @@ class Database:
             session.flush()
             session.refresh(trade)
             session.expunge(trade)
+            
+            # Emit event for realtime updates
+            self._emit_trade_executed(trade)
+            
             return trade
+    
+    def _emit_trade_executed(self, trade: TradeRecord):
+        """Emit trade executed event (non-blocking)."""
+        try:
+            from agents.connectors.events import get_broadcaster
+            broadcaster = get_broadcaster()
+            asyncio.create_task(broadcaster.emit_trade_executed(trade.to_dict()))
+        except Exception:
+            pass
     
     def get_trade(self, trade_id: int) -> Optional[TradeRecord]:
         """Get a trade by ID.
@@ -344,7 +372,20 @@ class Database:
             session.flush()
             session.refresh(snapshot)
             session.expunge(snapshot)
+            
+            # Emit event for realtime updates
+            self._emit_portfolio_updated(snapshot)
+            
             return snapshot
+    
+    def _emit_portfolio_updated(self, snapshot: PortfolioSnapshot):
+        """Emit portfolio updated event (non-blocking)."""
+        try:
+            from agents.connectors.events import get_broadcaster
+            broadcaster = get_broadcaster()
+            asyncio.create_task(broadcaster.emit_portfolio_updated(snapshot.to_dict()))
+        except Exception:
+            pass
     
     def get_latest_portfolio_snapshot(self) -> Optional[PortfolioSnapshot]:
         """Get the most recent portfolio snapshot.

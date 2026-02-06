@@ -1,0 +1,46 @@
+{# Reusable forecast card component #}
+{# Parameters: forecast #}
+<div class="bg-white shadow rounded-lg overflow-hidden">
+    <div class="px-6 py-4">
+        <div class="flex items-start justify-between">
+            <div class="flex-1">
+                <h3 class="text-lg font-medium text-gray-900">
+                    {{ forecast.market_question }}
+                </h3>
+                <div class="mt-2 flex items-center space-x-4 text-sm text-gray-500">
+                    <span>Market: #{{ forecast.market_id }}</span>
+                    <span>•</span>
+                    <span>Outcome: {{ forecast.outcome }}</span>
+                    <span>•</span>
+                    <span>{{ forecast.created_at }}</span>
+                </div>
+            </div>
+            <div class="ml-4 flex-shrink-0 text-right">
+                <div class="text-2xl font-bold text-indigo-600">
+                    {{ (forecast.probability * 100) | round(1) }}%
+                </div>
+                <div class="text-sm text-gray-500">
+                    Confidence: {{ (forecast.confidence * 100) | round(0) }}%
+                </div>
+            </div>
+        </div>
+        
+        {% if forecast.reasoning %}
+        <div class="mt-4 border-t border-gray-200 pt-4">
+            <h4 class="text-sm font-medium text-gray-900 mb-2">Reasoning</h4>
+            <p class="text-sm text-gray-600">{{ forecast.reasoning }}</p>
+        </div>
+        {% endif %}
+        
+        <!-- Probability Bar -->
+        <div class="mt-4">
+            <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <span>Probability Distribution</span>
+                <span>{{ (forecast.probability * 100) | round(1) }}% {{ forecast.outcome }}</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2">
+                <div class="bg-indigo-600 h-2 rounded-full" style="width: {{ (forecast.probability * 100) }}%"></div>
+            </div>
+        </div>
+    </div>
+</div>

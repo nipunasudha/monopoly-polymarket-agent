@@ -2,7 +2,7 @@
 from typing import List, Optional
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, status, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ import logging
 
 from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
+from agents.connectors.events import get_broadcaster
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -22,9 +23,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Setup templates
+# Setup templates with multiple directories
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "dashboard" / "templates"))
+from jinja2 import FileSystemLoader, Environment
+
+# Configure Jinja2 to search in templates, partials, and components directories
+jinja_env = Environment(loader=FileSystemLoader([
+    str(BASE_DIR / "dashboard" / "templates"),
+    str(BASE_DIR / "dashboard" / "partials"),
+    str(BASE_DIR / "dashboard" / "components"),
+]))
+templates = Jinja2Templates(env=jinja_env)
 
 # Initialize database
 # Note: Database file is created in the agents/ directory
@@ -34,6 +43,9 @@ db.create_tables()
 
 # Initialize agent runner
 agent_runner = get_agent_runner()
+
+# Initialize event broadcaster
+broadcaster = get_broadcaster()
 
 
 # Lifecycle events
@@ -182,6 +194,40 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+# SSE endpoint for realtime updates
+@app.get("/api/events/stream")
+async def event_stream(request: Request):
+    """Server-Sent Events endpoint for realtime updates.
+    
+    Streams events to connected clients:
+    - forecast_created: New forecast generated
+    - trade_executed: Trade executed
+    - portfolio_updated: Portfolio state changed
+    - agent_status_changed: Agent runner state changed
+    - ping: Keepalive message every 30s
+    """
+    async def event_generator():
+        """Generate SSE events for this connection."""
+        try:
+            async for message in broadcaster.connect():
+                # Check if client disconnected
+                if await request.is_disconnected():
+                    break
+                yield message
+        except Exception as e:
+            logger.error(f"SSE stream error: {e}")
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
 
 
 # Forecast endpoints
@@ -414,6 +460,53 @@ async def run_agent_once():
     """Manually trigger a single agent run."""
     result = await agent_runner.run_once()
     return AgentRunResult(**result)
+
+
+# Partial endpoints for HTMX updates
+@app.get("/partials/portfolio-stats", response_class=HTMLResponse)
+def get_portfolio_stats_partial(request: Request):
+    """Get portfolio stats partial for HTMX updates."""
+    portfolio_data = db.get_latest_portfolio_snapshot()
+    portfolio = portfolio_data.to_dict() if portfolio_data else {
+        "balance": 1000.0,
+        "total_value": 1000.0,
+        "total_pnl": 0.0,
+        "win_rate": 0.0,
+    }
+    return templates.TemplateResponse(
+        "portfolio_stats.html",
+        {"request": request, "portfolio": portfolio}
+    )
+
+
+@app.get("/partials/trade-list", response_class=HTMLResponse)
+def get_trade_list_partial(request: Request, limit: int = 10):
+    """Get trade list partial for HTMX updates."""
+    trades = db.get_recent_trades(limit=limit)
+    return templates.TemplateResponse(
+        "trade_list.html",
+        {"request": request, "trades": trades, "status": None}
+    )
+
+
+@app.get("/partials/forecast-list", response_class=HTMLResponse)
+def get_forecast_list_partial(request: Request, limit: int = 10):
+    """Get forecast list partial for HTMX updates."""
+    forecasts = db.get_recent_forecasts(limit=limit)
+    return templates.TemplateResponse(
+        "forecast_list.html",
+        {"request": request, "forecasts": forecasts}
+    )
+
+
+@app.get("/partials/agent-status", response_class=HTMLResponse)
+def get_agent_status_partial(request: Request):
+    """Get agent status partial for HTMX updates."""
+    status_data = agent_runner.get_status()
+    return templates.TemplateResponse(
+        "agent_status.html",
+        {"request": request, "status": status_data}
+    )
 
 
 @app.put("/api/agent/interval")

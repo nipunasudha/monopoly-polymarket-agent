@@ -21,7 +21,7 @@
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50" hx-ext="sse" sse-connect="/api/events/stream">
     <!-- Navigation -->
     <nav class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,7 +46,11 @@
                     </div>
                 </div>
                 <div class="flex items-center">
-                    <div class="flex-shrink-0">
+                    <div class="flex-shrink-0" 
+                         id="agent-status-indicator"
+                         hx-get="/partials/agent-status"
+                         hx-trigger="sse:agent_status_changed"
+                         hx-swap="innerHTML">
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                             <span class="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
                             Active
