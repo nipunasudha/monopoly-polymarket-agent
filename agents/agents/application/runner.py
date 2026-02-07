@@ -2,6 +2,7 @@
 Background agent runner for automated trading.
 Integrates with FastAPI's async event loop.
 """
+import os
 import asyncio
 import logging
 from datetime import datetime, timedelta
@@ -10,6 +11,8 @@ from enum import Enum
 
 from agents.application.trade import Trader
 from agents.connectors.database import Database
+from agents.core.hub import TradingHub
+from agents.core.agents import ResearchAgent, TradingAgent
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,19 @@ class AgentRunner:
         self.trader = Trader(approval_manager=approval_manager)
         self.db = database or Database()
         
+        # Initialize TradingHub and specialized agents (Phase 7)
+        self.use_new_architecture = os.getenv("USE_NEW_ARCHITECTURE", "false").lower() == "true"
+        if self.use_new_architecture:
+            self.hub = TradingHub()
+            self.research_agent = ResearchAgent(self.hub)
+            self.trading_agent = TradingAgent(self.hub)
+            logger.info("Initialized with new TradingHub architecture")
+        else:
+            self.hub = None
+            self.research_agent = None
+            self.trading_agent = None
+            logger.info("Using legacy architecture")
+        
         self.state = AgentState.STOPPED
         self.last_run: Optional[datetime] = None
         self.next_run: Optional[datetime] = None
@@ -58,7 +74,8 @@ class AgentRunner:
         """
         forecasts = self.db.get_recent_forecasts(limit=1000)
         trades = self.db.get_recent_trades(limit=1000)
-        return {
+        
+        status = {
             "state": self.state.value,
             "running": self.state == AgentState.RUNNING,
             "last_run": self.last_run.isoformat() if self.last_run else None,
@@ -69,7 +86,14 @@ class AgentRunner:
             "last_error": self.last_error,
             "total_forecasts": len(forecasts),
             "total_trades": len(trades),
+            "architecture": "new" if self.use_new_architecture else "legacy",
         }
+        
+        # Add hub status if using new architecture
+        if self.use_new_architecture and self.hub:
+            status["hub_status"] = self.hub.get_status()
+        
+        return status
     
     async def run_agent_cycle(self) -> dict:
         """Run a single agent cycle.
@@ -80,10 +104,19 @@ class AgentRunner:
         cycle_start = datetime.utcnow()
         
         try:
-            logger.info("Starting agent cycle...")
+            logger.info(f"Starting agent cycle... (architecture: {'new' if self.use_new_architecture else 'legacy'})")
             
-            # Run the trader
-            self.trader.one_best_trade()
+            # Choose architecture
+            if self.use_new_architecture:
+                # Use new TradingHub-based architecture
+                await self.trader.one_best_trade_v2(
+                    hub=self.hub,
+                    research_agent=self.research_agent,
+                    trading_agent=self.trading_agent
+                )
+            else:
+                # Use legacy architecture
+                self.trader.one_best_trade()
             
             self.run_count += 1
             self.last_run = cycle_start
@@ -163,6 +196,11 @@ class AgentRunner:
             logger.warning("Agent is already running")
             return
         
+        # Start TradingHub if using new architecture
+        if self.use_new_architecture and self.hub:
+            await self.hub.start()
+            logger.info("TradingHub started")
+        
         self.state = AgentState.RUNNING
         # Set next_run time immediately (agent will wait for interval before first execution)
         self.next_run = datetime.utcnow() + timedelta(minutes=self.interval_minutes)
@@ -181,6 +219,11 @@ class AgentRunner:
         
         was_paused = self.state == AgentState.PAUSED
         self.state = AgentState.STOPPED
+        
+        # Stop TradingHub if using new architecture
+        if self.use_new_architecture and self.hub:
+            await self.hub.stop()
+            logger.info("TradingHub stopped")
         
         # Emit status change event
         await self._emit_status_changed()
