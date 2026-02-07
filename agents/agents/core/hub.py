@@ -2,6 +2,7 @@
 
 import os
 import asyncio
+import logging
 from collections import deque
 from typing import Dict, Set, Optional, Any
 from datetime import datetime
@@ -14,6 +15,8 @@ from agents.core.session import Lane, Session, Task
 from agents.core.tools import ToolRegistry
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class TradingHub:
@@ -59,6 +62,7 @@ class TradingHub:
         
         # Task results storage
         self.task_results: Dict[str, Any] = {}
+        self.task_result_timestamps: Dict[str, float] = {}
         
         # Tool registry
         self.tool_registry = ToolRegistry()
@@ -67,12 +71,18 @@ class TradingHub:
         self._processor_task: Optional[asyncio.Task] = None
         self._running = False
         
+        # Cleanup configuration
+        self.session_ttl_seconds = 3600  # 1 hour
+        self.task_result_ttl_seconds = 300  # 5 minutes
+        
         # Statistics
         self.stats = {
             "tasks_enqueued": 0,
             "tasks_completed": 0,
             "tasks_failed": 0,
             "sessions_created": 0,
+            "sessions_cleaned": 0,
+            "results_cleaned": 0,
         }
     
     async def start(self):
@@ -161,18 +171,26 @@ class TradingHub:
     
     async def _process_lanes(self):
         """Background processor that executes tasks from all lanes."""
+        cleanup_counter = 0
         while self._running:
             try:
                 # Process each lane
                 for lane in Lane:
                     await self._process_lane(lane)
                 
+                # Cleanup every 100 iterations (~10 seconds)
+                cleanup_counter += 1
+                if cleanup_counter >= 100:
+                    await self._cleanup_old_sessions()
+                    await self._cleanup_old_task_results()
+                    cleanup_counter = 0
+                
                 # Small sleep to prevent busy waiting
                 await asyncio.sleep(0.1)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"[TradingHub] Error in lane processor: {e}")
+                logger.error(f"Error in lane processor: {e}", exc_info=True)
                 await asyncio.sleep(1)
     
     async def _process_lane(self, lane: Lane):
@@ -223,13 +241,15 @@ class TradingHub:
                 system_prompt=self._get_system_prompt(lane)
             )
             
-            # Store result
+            # Store result with timestamp
             self.task_results[task.id] = result
+            self.task_result_timestamps[task.id] = time.time()
             self.stats["tasks_completed"] += 1
             
         except Exception as e:
-            print(f"[TradingHub] Task {task.id} failed: {e}")
+            logger.error(f"Task {task.id} failed: {e}", exc_info=True)
             self.task_results[task.id] = e
+            self.task_result_timestamps[task.id] = time.time()
             self.stats["tasks_failed"] += 1
         finally:
             # Remove from active tasks
@@ -368,6 +388,37 @@ class TradingHub:
             Be efficient and reliable.""",
         }
         return prompts.get(lane, "You are a helpful AI assistant.")
+    
+    async def _cleanup_old_sessions(self):
+        """Remove sessions inactive for > session_ttl_seconds."""
+        current_time = time.time()
+        expired_sessions = [
+            session_id for session_id, session in self.sessions.items()
+            if (current_time - session.updated_at) > self.session_ttl_seconds
+        ]
+        
+        for session_id in expired_sessions:
+            self.sessions.pop(session_id, None)
+            self.stats["sessions_cleaned"] += 1
+        
+        if expired_sessions:
+            logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
+    
+    async def _cleanup_old_task_results(self):
+        """Remove task results older than task_result_ttl_seconds."""
+        current_time = time.time()
+        expired_tasks = [
+            task_id for task_id, timestamp in self.task_result_timestamps.items()
+            if (current_time - timestamp) > self.task_result_ttl_seconds
+        ]
+        
+        for task_id in expired_tasks:
+            self.task_results.pop(task_id, None)
+            self.task_result_timestamps.pop(task_id, None)
+            self.stats["results_cleaned"] += 1
+        
+        if expired_tasks:
+            logger.info(f"Cleaned up {len(expired_tasks)} expired task results")
     
     def get_status(self) -> Dict[str, Any]:
         """Get hub status information."""

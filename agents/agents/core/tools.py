@@ -4,6 +4,8 @@ Centralized tool definitions using Claude SDK format.
 """
 
 import os
+import asyncio
+import logging
 from typing import Dict, Callable, Any, List, Optional
 from dotenv import load_dotenv
 
@@ -19,6 +21,8 @@ from agents.polymarket.gamma import GammaMarketClient
 from agents.polymarket.polymarket import Polymarket
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
@@ -40,9 +44,9 @@ class ToolRegistry:
         else:
             self.exa = None
             if not Exa:
-                print("[WARNING] exa-py not installed. Exa tools will be unavailable.")
+                logger.warning("exa-py not installed. Exa tools will be unavailable.")
             elif not exa_api_key:
-                print("[WARNING] EXA_API_KEY not set. Exa tools will be unavailable.")
+                logger.warning("EXA_API_KEY not set. Exa tools will be unavailable.")
         
         # Initialize Tavily client
         tavily_api_key = os.getenv("TAVILY_API_KEY")
@@ -50,7 +54,7 @@ class ToolRegistry:
             self.tavily = TavilyClient(api_key=tavily_api_key)
         else:
             self.tavily = None
-            print("[WARNING] TAVILY_API_KEY not set. Tavily tools will be unavailable.")
+            logger.warning("TAVILY_API_KEY not set. Tavily tools will be unavailable.")
         
         # Initialize Polymarket clients
         self.gamma = GammaMarketClient()
@@ -230,7 +234,11 @@ class ToolRegistry:
             raise ValueError(f"Tool '{name}' not found in registry")
         
         executor = self.executors[name]
-        return await executor(**kwargs) if hasattr(executor, '__call__') else executor(**kwargs)
+        # Fix: Check if it's a coroutine function
+        if asyncio.iscoroutinefunction(executor):
+            return await executor(**kwargs)
+        else:
+            return executor(**kwargs)
     
     # Tool executors
     

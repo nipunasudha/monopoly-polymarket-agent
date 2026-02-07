@@ -2,9 +2,12 @@
 
 import asyncio
 import time
+import logging
 from typing import Dict, Any, Optional, Callable
 from enum import Enum
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 class ApprovalStatus(Enum):
@@ -318,8 +321,3 @@ class ApprovalManager:
             **self.stats,
             "pending_count": len([r for r in self.pending.values() if r.status == ApprovalStatus.PENDING])
         }
-
-
-# Import logger
-import logging
-logger = logging.getLogger(__name__)

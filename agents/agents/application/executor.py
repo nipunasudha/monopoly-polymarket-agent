@@ -89,8 +89,7 @@ class Executor:
             reasoning = random.choice(reasoning_templates)
             
             return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability (confidence: {confidence:.1%}) for {outcome}. {reasoning}"
-        if self.dry_run or self.client is None:
-            return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability (confidence: {confidence:.1%}) for {outcome}. {reasoning}"
+        
         prompt = self.prompter.superforecaster(
             question=market_question, description=event_title, outcome=outcome
         )
