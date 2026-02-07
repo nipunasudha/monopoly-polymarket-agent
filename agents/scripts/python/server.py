@@ -179,6 +179,28 @@ class IntervalUpdate(BaseModel):
     interval_minutes: int
 
 
+class TrackedTradeResponse(BaseModel):
+    proxyWallet: str
+    side: str
+    asset: str
+    conditionId: str
+    size: float
+    price: float
+    timestamp: int
+    title: str
+    slug: Optional[str]
+    icon: Optional[str]
+    eventSlug: Optional[str]
+    outcome: str
+    outcomeIndex: int
+    name: Optional[str]
+    pseudonym: Optional[str]
+    bio: Optional[str]
+    profileImage: Optional[str]
+    profileImageOptimized: Optional[str]
+    transactionHash: Optional[str]
+
+
 # Dashboard Routes (HTML)
 
 @app.get("/api/markets")
@@ -1142,6 +1164,53 @@ def sync_markets():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync markets: {str(e)}"
+        )
+
+
+# Tracking endpoints
+@app.get("/api/tracking/trades", response_model=List[TrackedTradeResponse])
+def get_tracked_trades(address: str, limit: int = 50, offset: int = 0):
+    """Get recent trades for a tracked wallet address from Polymarket Data API.
+    
+    Args:
+        address: Wallet address to track (0x-prefixed, 40 hex chars)
+        limit: Maximum number of trades to return (default: 50, max: 100)
+        offset: Number of trades to skip (default: 0)
+    """
+    try:
+        # Call Polymarket Data API
+        data_api_url = "https://data-api.polymarket.com/trades"
+        params = {
+            "user": address,
+            "limit": min(limit, 100),  # API max is 100
+            "offset": offset,
+        }
+        
+        response = httpx.get(data_api_url, params=params, timeout=10.0)
+        
+        if response.status_code != 200:
+            logger.error(f"Polymarket API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Polymarket API returned error: {response.status_code}"
+            )
+        
+        trades_data = response.json()
+        
+        # Return the trades (Polymarket API response matches our model)
+        return trades_data
+        
+    except httpx.TimeoutException:
+        logger.error("Timeout fetching tracked trades from Polymarket API")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Timeout fetching trades from Polymarket API"
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch tracked trades: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tracked trades: {str(e)}"
         )
 
 

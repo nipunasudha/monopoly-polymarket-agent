@@ -13,6 +13,7 @@ const navItems = [
   { href: '/trades', label: 'Trades' },
   { href: '/forecasts', label: 'Forecasts' },
   { href: '/news', label: 'News' },
+  { href: '/tracking', label: 'Tracking' },
   { href: '/debug', label: 'Debug' },
 ];
 

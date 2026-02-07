@@ -154,3 +154,25 @@ export interface NewsSearchResponse {
   keywords: string;
   dry_run?: boolean;
 }
+
+export interface TrackedTrade {
+  proxyWallet: string;
+  side: 'BUY' | 'SELL';
+  asset: string;
+  conditionId: string;
+  size: number;
+  price: number;
+  timestamp: number;
+  title: string;
+  slug?: string | null;
+  icon?: string | null;
+  eventSlug?: string | null;
+  outcome: string;
+  outcomeIndex: number;
+  name?: string | null;
+  pseudonym?: string | null;
+  bio?: string | null;
+  profileImage?: string | null;
+  profileImageOptimized?: string | null;
+  transactionHash?: string | null;
+}

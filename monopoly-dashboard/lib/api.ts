@@ -144,3 +144,9 @@ export const debugAPI = {
       total_deleted: number;
     }>('/api/debug/clear-all', { method: 'POST' }),
 };
+
+// Tracking API
+export const trackingAPI = {
+  getTrades: (address: string, limit = 50, offset = 0) =>
+    fetchAPI<import('@/lib/types').TrackedTrade[]>(`/api/tracking/trades?address=${encodeURIComponent(address)}&limit=${limit}&offset=${offset}`),
+};
