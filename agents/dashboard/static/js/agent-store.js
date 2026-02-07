@@ -122,17 +122,28 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // Agent control actions
+        // Agent control actions (optimistic updates)
         async start() {
             this.loading.starting = true;
+            
+            // Optimistic update - change UI immediately
+            const previousState = this.status.state;
+            this.status.state = 'running';
+            this.status.running = true;
+            
             try {
                 const response = await fetch('/api/agent/start', { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to start agent');
                 const data = await response.json();
                 console.log('Agent started:', data);
+                // Fetch fresh status to get next_run time
                 await this.fetchStatus();
             } catch (error) {
                 console.error('Failed to start agent:', error);
                 alert('Failed to start agent: ' + error.message);
+                // Revert optimistic update on error
+                this.status.state = previousState;
+                this.status.running = false;
             } finally {
                 this.loading.starting = false;
             }
@@ -140,36 +151,63 @@ document.addEventListener('alpine:init', () => {
 
         async stop() {
             this.loading.stopping = true;
+            
+            // Optimistic update
+            const previousState = this.status.state;
+            this.status.state = 'stopped';
+            this.status.running = false;
+            this.status.next_run = null;
+            
             try {
                 const response = await fetch('/api/agent/stop', { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to stop agent');
                 const data = await response.json();
                 console.log('Agent stopped:', data);
                 await this.fetchStatus();
             } catch (error) {
                 console.error('Failed to stop agent:', error);
                 alert('Failed to stop agent: ' + error.message);
+                // Revert on error
+                this.status.state = previousState;
+                this.status.running = true;
             } finally {
                 this.loading.stopping = false;
             }
         },
 
         async pause() {
+            // Optimistic update
+            const previousState = this.status.state;
+            this.status.state = 'paused';
+            
             try {
                 const response = await fetch('/api/agent/pause', { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to pause agent');
                 await response.json();
                 await this.fetchStatus();
             } catch (error) {
                 console.error('Failed to pause agent:', error);
+                alert('Failed to pause agent: ' + error.message);
+                this.status.state = previousState;
             }
         },
 
         async resume() {
+            // Optimistic update
+            const previousState = this.status.state;
+            this.status.state = 'running';
+            this.status.running = true;
+            
             try {
                 const response = await fetch('/api/agent/resume', { method: 'POST' });
+                if (!response.ok) throw new Error('Failed to resume agent');
                 await response.json();
                 await this.fetchStatus();
             } catch (error) {
                 console.error('Failed to resume agent:', error);
+                alert('Failed to resume agent: ' + error.message);
+                this.status.state = previousState;
+                this.status.running = false;
             }
         },
 

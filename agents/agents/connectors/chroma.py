@@ -38,6 +38,10 @@ class PolymarketRAG:
         self.gamma_client = GammaMarketClient()
         self.local_db_directory = local_db_directory
         self.embedding_function = embedding_function
+        self.dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+        
+        if self.dry_run:
+            print("[DRY RUN] RAG initialized - using lightweight embedding mode")
 
     def load_json_from_local(
         self, json_file_path=None, vector_db_directory="./local_db"
@@ -78,6 +82,30 @@ class PolymarketRAG:
         return response_docs
 
     def events(self, events: "list[SimpleEvent]", prompt: str) -> "list[tuple]":
+        # In dry_run mode, skip embedding and return simple text match
+        if self.dry_run and len(events) <= 20:
+            print(f"[DRY RUN] Skipping embeddings, using simple text matching for {len(events)} events")
+            # Simple keyword matching instead of vector search
+            results = []
+            prompt_lower = prompt.lower()
+            for event in events[:5]:  # Return top 5 matches
+                desc_lower = event.description.lower()
+                # Simple scoring based on keyword overlap
+                score = sum(word in desc_lower for word in prompt_lower.split())
+                if score > 0:
+                    # Mock Document object for compatibility
+                    from langchain_core.documents import Document
+                    doc = Document(
+                        page_content=event.description,
+                        metadata={
+                            "id": event.id,
+                            "markets": event.markets
+                        }
+                    )
+                    results.append((doc, 1.0 - (score * 0.1)))  # Lower score is better
+            return results if results else [(None, 1.0)]
+        
+        # Full embedding search for production or large datasets
         # create local json file with absolute path
         local_events_directory = _CHROMA_BASE_DIR / "events"
         local_events_directory.mkdir(exist_ok=True)
@@ -113,6 +141,34 @@ class PolymarketRAG:
         return local_db.similarity_search_with_score(query=prompt)
 
     def markets(self, markets: "list[SimpleMarket]", prompt: str) -> "list[tuple]":
+        # In dry_run mode, skip embedding and return simple text match
+        if self.dry_run and len(markets) <= 20:
+            print(f"[DRY RUN] Skipping embeddings, using simple text matching for {len(markets)} markets")
+            # Simple keyword matching instead of vector search
+            results = []
+            prompt_lower = prompt.lower()
+            for market in markets[:5]:  # Return top 5 matches
+                desc = getattr(market, 'description', market.get('question', ''))
+                desc_lower = str(desc).lower()
+                # Simple scoring based on keyword overlap
+                score = sum(word in desc_lower for word in prompt_lower.split())
+                if score > 0:
+                    # Mock Document object for compatibility
+                    from langchain_core.documents import Document
+                    doc = Document(
+                        page_content=desc,
+                        metadata={
+                            "id": market.get("id") if isinstance(market, dict) else market.id,
+                            "outcomes": market.get("outcomes") if isinstance(market, dict) else market.outcomes,
+                            "outcome_prices": market.get("outcome_prices") if isinstance(market, dict) else market.outcome_prices,
+                            "question": market.get("question") if isinstance(market, dict) else market.question,
+                            "clob_token_ids": market.get("clob_token_ids") if isinstance(market, dict) else market.clob_token_ids,
+                        }
+                    )
+                    results.append((doc, 1.0 - (score * 0.1)))  # Lower score is better
+            return results if results else [(None, 1.0)]
+        
+        # Full embedding search for production or large datasets
         # create local json file with absolute path
         local_markets_directory = _CHROMA_BASE_DIR / "markets"
         local_markets_directory.mkdir(exist_ok=True)

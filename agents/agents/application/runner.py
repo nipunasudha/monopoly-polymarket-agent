@@ -153,6 +153,10 @@ class AgentRunner:
         
         self.state = AgentState.RUNNING
         self.task = asyncio.create_task(self._run_loop())
+        
+        # Emit status change event immediately
+        await self._emit_status_changed()
+        
         logger.info("Agent runner started")
     
     async def stop(self):
