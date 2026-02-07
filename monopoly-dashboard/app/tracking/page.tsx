@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+} from '@tanstack/react-table';
 import { trackingAPI } from '@/lib/api';
 import type { TrackedTrade } from '@/lib/types';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,6 +44,9 @@ export default function TrackingPage() {
   const [trades, setTrades] = useState<TrackedTrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'timestamp', desc: true }, // Default sort by timestamp descending
+  ]);
 
   useEffect(() => {
     if (!selectedAddress) return;
@@ -72,6 +83,119 @@ export default function TrackingPage() {
     if (!slug) return null;
     return `https://polymarket.com/event/${slug}`;
   };
+
+  const formatAsset = (asset: string) => {
+    return asset.length > 12 ? `${asset.slice(0, 8)}...${asset.slice(-4)}` : asset;
+  };
+
+  const columns = useMemo<ColumnDef<TrackedTrade>[]>(
+    () => [
+      {
+        accessorKey: 'title',
+        header: 'Market',
+        cell: ({ row }) => (
+          <div className="font-medium max-w-xs">
+            <div className="line-clamp-2">{row.original.title}</div>
+            {row.original.slug && (
+              <a
+                href={getPolymarketUrl(row.original.slug) || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
+              >
+                View on Polymarket
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {row.original.conditionId && (
+              <div className="text-xs text-muted-foreground mt-1 font-mono">
+                {formatAddress(row.original.conditionId)}
+              </div>
+            )}
+          </div>
+        ),
+        enableSorting: false,
+      },
+      {
+        accessorKey: 'outcome',
+        header: 'Outcome',
+        cell: ({ row }) => (
+          <Badge variant="outline">{row.original.outcome}</Badge>
+        ),
+      },
+      {
+        accessorKey: 'side',
+        header: 'Side',
+        cell: ({ row }) => (
+          <Badge variant="secondary">{row.original.side}</Badge>
+        ),
+      },
+      {
+        accessorKey: 'asset',
+        header: 'Asset',
+        cell: ({ row }) => (
+          <span className="text-sm font-mono" title={row.original.asset}>
+            {formatAsset(row.original.asset)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'size',
+        header: 'Size',
+        cell: ({ row }) => `$${row.original.size.toFixed(2)}`,
+        sortingFn: (rowA, rowB) => rowA.original.size - rowB.original.size,
+      },
+      {
+        accessorKey: 'price',
+        header: 'Price',
+        cell: ({ row }) => `$${row.original.price.toFixed(4)}`,
+        sortingFn: (rowA, rowB) => rowA.original.price - rowB.original.price,
+      },
+      {
+        accessorKey: 'timestamp',
+        header: 'Time',
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">
+            {formatDate(row.original.timestamp)}
+          </span>
+        ),
+        sortingFn: (rowA, rowB) => rowA.original.timestamp - rowB.original.timestamp,
+      },
+      {
+        accessorKey: 'transactionHash',
+        header: 'Transaction',
+        cell: ({ row }) => {
+          const trade = row.original;
+          return trade.transactionHash ? (
+            <a
+              href={`https://polygonscan.com/tx/${trade.transactionHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+            >
+              {formatAddress(trade.transactionHash)}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          );
+        },
+        enableSorting: false,
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable({
+    data: trades,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: {
+      sorting,
+    },
+  });
 
   const selectedAddressInfo = TRACKED_ADDRESSES.find(addr => addr.address === selectedAddress);
 
@@ -181,75 +305,65 @@ export default function TrackingPage() {
       </div>
 
       <Card>
-        <CardContent>
-          {trades.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              No trades found for this address
-            </div>
+        <div className="overflow-x-auto">
+          {table.getRowModel().rows.length === 0 ? (
+            <CardContent>
+              <div className="text-center py-12 text-muted-foreground">
+                No trades found for this address
+              </div>
+            </CardContent>
           ) : (
-            <div className="overflow-x-auto">
+            <>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Market</TableHead>
-                    <TableHead>Outcome</TableHead>
-                    <TableHead>Side</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Transaction</TableHead>
-                  </TableRow>
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <div
+                              className={cn(
+                                "flex items-center gap-2",
+                                header.column.getCanSort() && 'cursor-pointer select-none hover:text-foreground'
+                              )}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {header.column.getCanSort() && (
+                                <span className="text-muted-foreground">
+                                  {{
+                                    asc: ' ↑',
+                                    desc: ' ↓',
+                                  }[header.column.getIsSorted() as string] ?? ' ↕'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
                 </TableHeader>
                 <TableBody>
-                  {trades.map((trade, index) => (
-                    <TableRow key={`${trade.transactionHash}-${index}`}>
-                      <TableCell className="font-medium max-w-xs">
-                        <div className="line-clamp-2">{trade.title}</div>
-                        {trade.slug && (
-                          <a
-                            href={getPolymarketUrl(trade.slug) || '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-1"
-                          >
-                            View on Polymarket
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{trade.outcome}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{trade.side}</Badge>
-                      </TableCell>
-                      <TableCell>${trade.size.toFixed(2)}</TableCell>
-                      <TableCell>${trade.price.toFixed(4)}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {formatDate(trade.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        {trade.transactionHash ? (
-                          <a
-                            href={`https://polygonscan.com/tx/${trade.transactionHash}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-primary hover:underline inline-flex items-center gap-1"
-                          >
-                            {formatAddress(trade.transactionHash)}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
+                  {table.getRowModel().rows.map(row => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map(cell => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              <div className="px-4 py-3 border-t">
+                <div className="text-center text-sm text-muted-foreground">
+                  Showing {table.getRowModel().rows.length} trades
+                </div>
+              </div>
+            </>
           )}
-        </CardContent>
+        </div>
       </Card>
     </div>
   );
