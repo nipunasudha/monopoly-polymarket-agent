@@ -126,6 +126,15 @@ export const newsAPI = {
     fetchAPI<import('@/lib/types').NewsSearchResponse>(`/api/news/search?keywords=${encodeURIComponent(keywords)}`),
 };
 
+// Hub API
+export const hubAPI = {
+  getStatus: () => 
+    fetchAPI<{ status: string; hub: import('@/lib/types').HubStatus }>('/api/hub/status'),
+  
+  getStats: () => 
+    fetchAPI<import('@/lib/types').HubStats>('/api/hub/stats'),
+};
+
 // Health check
 export const healthAPI = {
   check: () => 

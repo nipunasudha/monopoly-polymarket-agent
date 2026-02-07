@@ -2,6 +2,42 @@
  * TypeScript types matching FastAPI Pydantic models
  */
 
+export interface LaneStatus {
+  queued: number;
+  active: number;
+  limit: number;
+}
+
+export interface HubStatus {
+  running: boolean;
+  sessions: number;
+  lane_status: {
+    main: LaneStatus;
+    research: LaneStatus;
+    monitor: LaneStatus;
+    cron: LaneStatus;
+  };
+  stats: {
+    tasks_enqueued: number;
+    tasks_completed: number;
+    tasks_failed: number;
+    sessions_created: number;
+    sessions_cleaned: number;
+    results_cleaned: number;
+  };
+  pending_results: number;
+  metrics?: Record<string, any>;
+}
+
+export interface HubStats {
+  status: string;
+  stats: HubStatus['stats'];
+  sessions: number;
+  queued_tasks: number;
+  active_tasks: number;
+  lanes: HubStatus['lane_status'];
+}
+
 export interface AgentStatus {
   state: 'stopped' | 'running' | 'paused' | 'error';
   running: boolean;
@@ -14,6 +50,7 @@ export interface AgentStatus {
   total_forecasts?: number;
   total_trades?: number;
   trading_mode?: 'dry_run' | 'live';
+  hub_status?: HubStatus;
 }
 
 export interface Forecast {
@@ -99,6 +136,7 @@ export type RealtimeStatePatch = {
   agent?: Partial<AgentStatus>;
   portfolio?: PortfolioSnapshot | null;
   activities?: Activity[];
+  hubStatus?: HubStatus | null;
 };
 
 // WebSocket message types
@@ -109,6 +147,7 @@ export type WSMessage =
   | { type: 'trade_executed'; data: Trade; timestamp: string }
   | { type: 'portfolio_updated'; data: PortfolioSnapshot; timestamp: string }
   | { type: 'data_cleared'; data: { forecasts_deleted: number; trades_deleted: number; portfolio_snapshots_deleted: number; total_deleted: number }; timestamp: string }
+  | { type: 'hub_status_update'; data: HubStatus; timestamp: string }
   | { type: 'pong'; timestamp: string };
 
 export type WSCommand = 

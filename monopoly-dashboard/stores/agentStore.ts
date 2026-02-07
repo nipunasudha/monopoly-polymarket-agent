@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { AgentStatus, Activity, PortfolioSnapshot, RealtimeStatePatch } from '@/lib/types';
+import type { AgentStatus, Activity, PortfolioSnapshot, RealtimeStatePatch, HubStatus } from '@/lib/types';
 
 interface AgentStore {
   // Realtime state (updated via WebSocket)
   status: AgentStatus;
   portfolio: PortfolioSnapshot | null;
   activities: Activity[];
+  hubStatus: HubStatus | null;
   loading: {
     starting: boolean;
     stopping: boolean;
@@ -35,6 +36,7 @@ const initialRealtime = {
   },
   portfolio: null as PortfolioSnapshot | null,
   activities: [] as Activity[],
+  hubStatus: null as HubStatus | null,
 };
 
 export const useAgentStore = create<AgentStore>()(
@@ -58,6 +60,9 @@ export const useAgentStore = create<AgentStore>()(
           }
           if (updates.activities !== undefined) {
             next.activities = updates.activities;
+          }
+          if (updates.hubStatus !== undefined) {
+            next.hubStatus = updates.hubStatus;
           }
           return next;
         }),
@@ -89,6 +94,7 @@ export const useAgentStore = create<AgentStore>()(
         status: state.status,
         portfolio: state.portfolio,
         activities: state.activities,
+        hubStatus: state.hubStatus,
       }),
     }
   )

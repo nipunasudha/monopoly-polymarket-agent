@@ -79,6 +79,9 @@ export function useWebSocket() {
         case 'trade_executed':
           addActivity('trade', message.data);
           break;
+        case 'hub_status_update':
+          patchRealtime({ hubStatus: message.data });
+          break;
         case 'data_cleared':
           // Reset the store when data is cleared
           reset();
@@ -117,6 +120,10 @@ export function useWebSocket() {
         console.log('[WebSocket] ✅ Connected successfully');
         setIsConnected(true);
         setError(null);
+        
+        // Send initial ping and subscribe to hub updates
+        send({ action: 'ping' });
+        send({ action: 'subscribe_hub' } as WSCommand);
         
         // Start ping interval
         if (pingInterval.current) clearInterval(pingInterval.current);

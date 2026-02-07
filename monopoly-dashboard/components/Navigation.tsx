@@ -9,7 +9,7 @@ import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 const navItems = [
   { href: '/', label: 'Portfolio' },
-  { href: '/agent', label: 'Agent' },
+  { href: '/agent', label: 'System' },
   { href: '/markets', label: 'Markets' },
   { href: '/trades', label: 'Trades' },
   { href: '/forecasts', label: 'Forecasts' },
