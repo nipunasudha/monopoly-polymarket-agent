@@ -44,7 +44,7 @@ Based on the open-source [Polymarket Agents](https://github.com/polymarket/agent
 
 The Monopoly Agent uses a sophisticated multi-agent architecture with lane-based concurrency for optimal performance. For complete architecture documentation, see [`ARCHITECTURE.md`](../ARCHITECTURE.md).
 
-###Quick Overview
+### Quick Overview
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -143,12 +143,14 @@ This repo uses [uv](https://docs.astral.sh/uv/) for dependency management and re
 
 5. Load your wallet with USDC.
 
-6. Try the CLI or go trade:
+6. Try the CLI or start the server:
 
    ```
    uv run monopoly --help
-   uv run monopoly run-autonomous-trader
+   uv run dev  # Start the FastAPI server with WebSocket support
    ```
+
+   **Note:** The `run-autonomous-trader` CLI command requires the new async architecture. Use the API server (`uv run dev`) and control the agent via `/api/agent/start` endpoint or the dashboard UI.
 
 ## CLI Commands
 
@@ -175,7 +177,9 @@ uv run monopoly ask-polymarket-llm "Best market opportunities today?"
 ### Trading
 ```bash
 uv run monopoly create-market
-uv run monopoly run-autonomous-trader
+# Note: run-autonomous-trader requires async setup - use API server instead
+# Start server: uv run dev
+# Then use: POST /api/agent/start or the dashboard UI
 ```
 
 ## Container Setup
