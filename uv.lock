@@ -1667,6 +1667,24 @@ wheels = [
 ]
 
 [[package]]
+name = "exa-py"
+version = "2.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpcore" },
+    { name = "httpx" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5c/3b/36b15e7fd1e3bd85237378a5ef22f0d84eeb74ae50b72f4aeea5a6e8a84b/exa_py-2.3.0.tar.gz", hash = "sha256:9511848795e2bc6e37c00868a2a85ba4ce6784254d4b5f514c8b29eca6ad362a", size = 47929 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/9b/e44cac030097e63e8d41d3d1746d18b279b91fc7e68df5e4601f278d3bc2/exa_py-2.3.0-py3-none-any.whl", hash = "sha256:d42506bbcd8826cb933b1588815a6c12c4060c01e52101338ad8fa186cce55aa", size = 62983 },
+]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3376,9 +3394,11 @@ name = "monopoly-agents"
 version = "0.1.0"
 source = { editable = "agents" }
 dependencies = [
+    { name = "anthropic" },
     { name = "chromadb" },
     { name = "devtools" },
     { name = "eip712-structs" },
+    { name = "exa-py" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jq" },
@@ -3427,9 +3447,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", specifier = ">=0.40.0" },
     { name = "chromadb", specifier = ">=0.5.5,<0.6" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "eip712-structs", specifier = ">=1.1.0" },
+    { name = "exa-py", specifier = ">=1.5.0" },
     { name = "fastapi", specifier = ">=0.111.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "jq", specifier = ">=1.7.0" },
@@ -3940,6 +3962,25 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/10/f5/67bd1b947bc4055ea62efd4b974cef51a8a6819ac4e8c61ca014901dbfd0/onnxruntime-1.18.1-cp39-cp39-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ad3187c1faff3ac15f7f0e7373ef4788c582cafa655a80fdbb33eaec88976c66", size = 6793994 },
     { url = "https://files.pythonhosted.org/packages/50/ea/4fb07d2a82d6b2782c98adcaea7d3e6b057b8e85c219f8d21e5ec72bc423/onnxruntime-1.18.1-cp39-cp39-win32.whl", hash = "sha256:34657c78aa4e0b5145f9188b550ded3af626651b15017bf43d280d7e23dbf195", size = 5070149 },
     { url = "https://files.pythonhosted.org/packages/da/5b/60dd8b3acf1230eb7093122f4fa621784ec4a7deaaf246456a4e2f0f0a25/onnxruntime-1.18.1-cp39-cp39-win_amd64.whl", hash = "sha256:9c14fd97c3ddfa97da5feef595e2c73f14c2d0ec1d4ecbea99c8d96603c89589", size = 5584248 },
+]
+
+[[package]]
+name = "openai"
+version = "2.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "httpx" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9c/a2/677f22c4b487effb8a09439fb6134034b5f0a39ca27df8b95fac23a93720/openai-2.17.0.tar.gz", hash = "sha256:47224b74bd20f30c6b0a6a329505243cb2f26d5cf84d9f8d0825ff8b35e9c999", size = 631445 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/97/284535aa75e6e84ab388248b5a323fc296b1f70530130dee37f7f4fbe856/openai-2.17.0-py3-none-any.whl", hash = "sha256:4f393fd886ca35e113aac7ff239bcd578b81d8f104f5aedc7d3693eb2af1d338", size = 1069524 },
 ]
 
 [[package]]
