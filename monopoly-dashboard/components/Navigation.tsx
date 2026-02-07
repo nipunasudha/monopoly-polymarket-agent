@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { TradingModeBadge } from '@/components/TradingModeBadge';
+import { ThemeSwitcher } from '@/components/ThemeSwitcher';
 
 const navItems = [
   { href: '/', label: 'Portfolio' },
@@ -20,7 +21,7 @@ export function Navigation() {
 
   return (
     <nav className="border-b bg-background">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container mx-auto flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center space-x-2">
             <h1 className="text-xl font-bold">🎲 Monopoly Agents</h1>
@@ -47,7 +48,8 @@ export function Navigation() {
             })}
           </div>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-4">
+          <ThemeSwitcher />
           <TradingModeBadge />
         </div>
       </div>

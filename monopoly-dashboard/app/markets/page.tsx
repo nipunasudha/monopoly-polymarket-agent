@@ -13,6 +13,15 @@ import {
 } from '@tanstack/react-table';
 import { marketsAPI } from '@/lib/api';
 import type { Market } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { RotateCw, Search, X, BarChart3, CheckCircle2, DollarSign } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function MarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
@@ -225,10 +234,10 @@ export default function MarketsPage() {
   };
 
   const getSpreadColor = (spread?: number) => {
-    if (spread === undefined || spread === null) return 'text-gray-500';
-    if (spread <= 0.01) return 'text-green-600';
-    if (spread <= 0.02) return 'text-yellow-600';
-    return 'text-red-600';
+    if (spread === undefined || spread === null) return 'text-muted-foreground';
+    if (spread <= 0.01) return 'text-green-600 dark:text-green-400';
+    if (spread <= 0.02) return 'text-yellow-600 dark:text-yellow-400';
+    return 'text-red-600 dark:text-red-400';
   };
 
   const columns = useMemo<ColumnDef<Market>[]>(
@@ -238,11 +247,11 @@ export default function MarketsPage() {
         header: 'Market',
         cell: ({ row }) => (
           <div className="max-w-md">
-            <div className="text-sm font-medium text-gray-900 line-clamp-2">
+            <div className="text-sm font-medium line-clamp-2">
               {row.original.question}
             </div>
             {row.original.description && (
-              <div className="mt-0.5 text-xs text-gray-500 line-clamp-1" title={row.original.description}>
+              <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1" title={row.original.description}>
                 {row.original.description}
               </div>
             )}
@@ -262,8 +271,8 @@ export default function MarketsPage() {
                   const price = market.outcome_prices[idx];
                   return (
                     <div key={idx} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-600">{outcome}:</span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${getPriceColor(price)}`}>
+                      <span className="text-xs text-muted-foreground">{outcome}:</span>
+                      <span className={cn("px-2 py-0.5 rounded text-xs font-semibold", getPriceColor(price))}>
                         {formatPrice(price)}
                       </span>
                     </div>
@@ -272,7 +281,7 @@ export default function MarketsPage() {
               </div>
             );
           }
-          return <span className="text-xs text-gray-400">N/A</span>;
+          return <span className="text-xs text-muted-foreground">N/A</span>;
         },
         enableSorting: false,
       },
@@ -280,7 +289,7 @@ export default function MarketsPage() {
         accessorKey: 'volume',
         header: 'Volume',
         cell: ({ row }) => (
-          <span className="text-sm text-gray-900">
+          <span className="text-sm">
             {row.original.volume ? formatVolume(row.original.volume) : 'N/A'}
           </span>
         ),
@@ -294,7 +303,7 @@ export default function MarketsPage() {
         accessorKey: 'liquidity',
         header: 'Liquidity',
         cell: ({ row }) => (
-          <span className="text-sm text-gray-900">
+          <span className="text-sm">
             {row.original.liquidity ? formatVolume(row.original.liquidity) : 'N/A'}
           </span>
         ),
@@ -325,31 +334,13 @@ export default function MarketsPage() {
           const market = row.original;
           return (
             <div className="flex flex-col gap-1">
-              {market.active ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
-                  Inactive
-                </span>
-              )}
+              <Badge variant={market.active ? 'default' : 'secondary'}>
+                {market.active ? 'Active' : 'Inactive'}
+              </Badge>
               {market.funded !== undefined && (
-                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                  market.funded 
-                    ? 'bg-blue-100 text-blue-800' 
-                    : 'bg-gray-100 text-gray-600'
-                }`}>
+                <Badge variant={market.funded ? 'default' : 'outline'}>
                   {market.funded ? 'Funded' : 'Unfunded'}
-                </span>
-              )}
-              {market.clob_token_ids && market.clob_token_ids.length > 0 && (
-                <span 
-                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800"
-                  title={`CLOB Tokens: ${market.clob_token_ids.join(', ')}`}
-                >
-                  CLOB: {market.clob_token_ids.length}
-                </span>
+                </Badge>
               )}
             </div>
           );
@@ -364,7 +355,7 @@ export default function MarketsPage() {
         accessorKey: 'end',
         header: 'End Date',
         cell: ({ row }) => (
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             {formatDate(row.original.end)}
           </span>
         ),
@@ -403,15 +394,15 @@ export default function MarketsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Market Scanner</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Browse and analyze prediction markets
-          </p>
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96 mt-2" />
         </div>
-        <div className="bg-white shadow rounded-lg p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-sm text-gray-500">Loading markets...</p>
-        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <RotateCw className="animate-spin h-12 w-12 mx-auto text-primary" />
+            <p className="mt-4 text-sm text-muted-foreground">Loading markets...</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -420,24 +411,19 @@ export default function MarketsPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Market Scanner</h2>
-          <p className="mt-1 text-sm text-gray-500">
+          <h2 className="text-2xl font-bold">Market Scanner</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Browse and analyze prediction markets
           </p>
         </div>
-        <div className="bg-white shadow rounded-lg p-12 text-center">
-          <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">Error Loading Markets</h3>
-          <p className="mt-2 text-sm text-gray-500">{error}</p>
-          <button
-            onClick={() => loadMarkets(true)}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Retry
-          </button>
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Error Loading Markets</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={() => loadMarkets(true)}>
+          <RotateCw className="mr-2 h-4 w-4" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -449,152 +435,136 @@ export default function MarketsPage() {
         <div className="flex-1">
           <div className="flex items-center gap-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Market Scanner</h2>
-              <p className="mt-1 text-sm text-gray-500">
+              <h2 className="text-2xl font-bold">Market Scanner</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Browse and analyze prediction markets
               </p>
             </div>
             {/* Compact Stats */}
-            <div className="flex items-center gap-4 ml-4 text-xs text-gray-600">
+            <div className="flex items-center gap-4 ml-4 text-xs text-muted-foreground">
               <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                <span className="font-medium text-gray-900">{markets.length}</span>
+                <BarChart3 className="w-4 h-4" />
+                <span className="font-medium">{markets.length}</span>
                 <span>markets</span>
               </div>
               <div className="flex items-center gap-1">
-                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-medium text-green-600">{activeMarkets}</span>
+                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="font-medium text-green-600 dark:text-green-400">{activeMarkets}</span>
                 <span>active</span>
               </div>
               <div className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-medium text-gray-900">{formatVolume(totalVolume)}</span>
+                <DollarSign className="w-4 h-4" />
+                <span className="font-medium">{formatVolume(totalVolume)}</span>
               </div>
             </div>
           </div>
         </div>
         <div className="flex items-center space-x-2">
           {isDryRun && (
-            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              Fixture
-            </span>
+            <Badge variant="secondary">Fixture</Badge>
           )}
-          <button
+          <Button
             onClick={() => loadMarkets(true)}
-            className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
+            variant="outline"
+            size="sm"
           >
-            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
+            <RotateCw className="w-3 h-3 mr-1" />
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white shadow rounded-lg p-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          {/* Days Ahead Filter */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Ending within:</label>
-            <select
-              value={daysFilter}
-              onChange={(e) => setDaysFilter(Number(e.target.value))}
-              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={7}>7 days</option>
-              <option value={30}>30 days</option>
-              <option value={90}>90 days</option>
-              <option value={365}>1 year</option>
-              <option value={0}>All time</option>
-            </select>
-          </div>
-
-          {/* Show Closed Markets Toggle */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-700 whitespace-nowrap cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showClosed}
-                onChange={(e) => setShowClosed(e.target.checked)}
-                className="mr-1.5 rounded"
-              />
-              Show closed
-            </label>
-          </div>
-
-          {/* Search */}
-          <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search markets (powered by Polymarket search API)..."
-              value={globalFilter ?? ''}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="block w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            />
-            {globalFilter && (
-              <button
-                onClick={() => setGlobalFilter('')}
-                className="absolute inset-y-0 right-0 pr-2 flex items-center"
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            {/* Days Ahead Filter */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium whitespace-nowrap">Ending within:</label>
+              <select
+                value={daysFilter}
+                onChange={(e) => setDaysFilter(Number(e.target.value))}
+                className="px-2 py-1.5 border border-input rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                <svg className="h-4 w-4 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
+                <option value={7}>7 days</option>
+                <option value={30}>30 days</option>
+                <option value={90}>90 days</option>
+                <option value={365}>1 year</option>
+                <option value={0}>All time</option>
+              </select>
+            </div>
+
+            {/* Show Closed Markets Toggle */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium whitespace-nowrap cursor-pointer flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={showClosed}
+                  onChange={(e) => setShowClosed(e.target.checked)}
+                  className="rounded"
+                />
+                Show closed
+              </label>
+            </div>
+
+            {/* Search */}
+            <div className="flex-1 relative">
+              <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <Input
+                type="text"
+                placeholder="Search markets (powered by Polymarket search API)..."
+                value={globalFilter ?? ''}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+                className="pl-8 pr-8"
+              />
+              {globalFilter && (
+                <button
+                  onClick={() => setGlobalFilter('')}
+                  className="absolute inset-y-0 right-0 pr-2 flex items-center"
+                >
+                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Markets Table */}
       {table.getRowModel().rows.length === 0 ? (
-        <div className="bg-white shadow rounded-lg p-12 text-center">
-          <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">
-            {globalFilter ? 'No markets match your search' : 'No Markets Available'}
-          </h3>
-          <p className="mt-2 text-sm text-gray-500">
-            {globalFilter ? 'Try adjusting your search query' : 'Could not fetch markets from Polymarket'}
-          </p>
-        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <BarChart3 className="mx-auto h-16 w-16 text-muted-foreground/50" />
+            <h3 className="mt-4 text-lg font-medium">
+              {globalFilter ? 'No markets match your search' : 'No Markets Available'}
+            </h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {globalFilter ? 'Try adjusting your search query' : 'Could not fetch markets from Polymarket'}
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <Card>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <Table>
+              <TableHeader>
                 {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
+                  <TableRow key={headerGroup.id}>
                     {headerGroup.headers.map(header => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
+                      <TableHead key={header.id}>
                         {header.isPlaceholder ? null : (
                           <div
-                            className={`flex items-center gap-2 ${
-                              header.column.getCanSort() ? 'cursor-pointer select-none hover:text-gray-700' : ''
-                            }`}
+                            className={cn(
+                              "flex items-center gap-2",
+                              header.column.getCanSort() && 'cursor-pointer select-none hover:text-foreground'
+                            )}
                             onClick={header.column.getToggleSortingHandler()}
                           >
                             {flexRender(header.column.columnDef.header, header.getContext())}
                             {header.column.getCanSort() && (
-                              <span className="text-gray-400">
+                              <span className="text-muted-foreground">
                                 {{
                                   asc: ' ↑',
                                   desc: ' ↓',
@@ -603,28 +573,28 @@ export default function MarketsPage() {
                             )}
                           </div>
                         )}
-                      </th>
+                      </TableHead>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              </TableHeader>
+              <TableBody>
                 {table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="hover:bg-gray-50">
+                  <TableRow key={row.id}>
                     {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-4 py-2">
+                      <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
+                      </TableCell>
                     ))}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Manual Load More - No Auto-scroll to save API quota */}
-          <div className="bg-white px-4 py-3 border-t border-gray-200">
-            <div className="text-center text-sm text-gray-500">
+          <div className="px-4 py-3 border-t">
+            <div className="text-center text-sm text-muted-foreground">
               Showing {table.getFilteredRowModel().rows.length} of {markets.length} loaded markets
               {globalFilter && ` (filtered from search)`}
             </div>
@@ -634,33 +604,30 @@ export default function MarketsPage() {
               <div ref={loadMoreRef} className="py-4 text-center">
                 {loadingMore ? (
                   <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                    <span className="text-sm text-gray-500">Loading more markets...</span>
+                    <RotateCw className="animate-spin h-5 w-5 text-primary" />
+                    <span className="text-sm text-muted-foreground">Loading more markets...</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <button
+                    <Button
                       onClick={loadMore}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      variant="outline"
                     >
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
                       Load {PAGE_SIZE} More Markets
-                    </button>
-                    <span className="text-xs text-gray-400">Click to load more (saves API quota)</span>
+                    </Button>
+                    <span className="text-xs text-muted-foreground">Click to load more (saves API quota)</span>
                   </div>
                 )}
               </div>
             )}
             
             {!hasMore && markets.length > 0 && (
-              <div className="py-4 text-center text-sm text-gray-500">
+              <div className="py-4 text-center text-sm text-muted-foreground">
                 All available markets loaded ({markets.length} total)
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

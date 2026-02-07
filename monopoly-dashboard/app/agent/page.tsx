@@ -10,8 +10,8 @@ export default function AgentPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Agent Control Panel</h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <h2 className="text-2xl font-bold">Agent Control Panel</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           Manage and monitor your Polymarket trading agent
         </p>
       </div>

@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { debugAPI } from '@/lib/api';
 import { useAgentStore } from '@/stores/agentStore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function DebugPage() {
   const router = useRouter();
@@ -57,69 +60,66 @@ export default function DebugPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Debug Tools</h1>
-        <p className="mt-2 text-sm text-gray-600">
+        <h1 className="text-3xl font-bold">Debug Tools</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           Development and testing utilities
         </p>
       </div>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-medium text-gray-900">Clear All Records</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Delete all forecasts, trades, and portfolio snapshots from the database
-            </p>
-          </div>
-        </div>
-
-        {!showConfirm ? (
-          <button
-            onClick={handleClearAll}
-            disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Clearing...' : 'Clear All Records'}
-          </button>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <p className="text-sm font-medium text-red-800">
-                ⚠️ Warning: This action cannot be undone!
-              </p>
-              <p className="text-sm text-red-700 mt-1">
-                This will permanently delete all forecasts, trades, and portfolio snapshots.
-              </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Clear All Records</CardTitle>
+          <CardDescription>
+            Delete all forecasts, trades, and portfolio snapshots from the database
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!showConfirm ? (
+            <Button
+              onClick={handleClearAll}
+              disabled={loading}
+              variant="destructive"
+            >
+              {loading ? 'Clearing...' : 'Clear All Records'}
+            </Button>
+          ) : (
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertTitle>⚠️ Warning: This action cannot be undone!</AlertTitle>
+                <AlertDescription>
+                  This will permanently delete all forecasts, trades, and portfolio snapshots.
+                </AlertDescription>
+              </Alert>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleClearAll}
+                  disabled={loading}
+                  variant="destructive"
+                >
+                  {loading ? 'Clearing...' : 'Yes, Clear All'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setShowConfirm(false);
+                  }}
+                  disabled={loading}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleClearAll}
-                disabled={loading}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Clearing...' : 'Yes, Clear All'}
-              </button>
-              <button
-                onClick={() => {
-                  setShowConfirm(false);
-                }}
-                disabled={loading}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </CardContent>
+      </Card>
 
-      </div>
-
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-sm text-yellow-800">
-          <strong>Note:</strong> This page is for development and testing purposes only.
+      <Alert>
+        <AlertTitle>Note</AlertTitle>
+        <AlertDescription>
+          This page is for development and testing purposes only.
           Use with caution in production environments.
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

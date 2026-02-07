@@ -15,12 +15,12 @@ export function TradingModeBadge() {
   
   return (
     <Badge 
-      variant={tradingMode === 'live' ? 'destructive' : 'secondary'}
+      variant="secondary"
       className="gap-2"
     >
       <span className={cn(
         "h-2 w-2 rounded-full",
-        tradingMode === 'live' ? 'bg-destructive-foreground' : 'bg-yellow-500'
+        tradingMode === 'live' ? 'bg-red-500' : 'bg-yellow-500'
       )} />
       {tradingModeLabels[tradingMode]}
     </Badge>
