@@ -86,65 +86,6 @@ class TestTavilySearch:
 
 
 @pytest.mark.integration
-@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4")
-class TestSearchIntegrationWithExecutor:
-    """Test search integration with Executor."""
-
-    @patch("agents.connectors.search.tavily_client")
-    @patch("agents.application.executor.ChatAnthropic")
-    def test_search_context_flows_to_llm(
-        self, mock_anthropic, mock_search, mock_llm_response
-    ):
-        """Test that search context flows through to LLM."""
-        from agents.application.executor import Executor
-
-        # Mock search to return context
-        search_context = "Current market conditions: bullish sentiment, high volume"
-        mock_search.get_search_context.return_value = search_context
-
-        # Mock LLM
-        mock_llm = Mock()
-        mock_llm.invoke.return_value = mock_llm_response("Forecast based on context")
-        mock_anthropic.return_value = mock_llm
-
-        executor = Executor()
-        executor.llm = mock_llm
-
-        # In a real implementation, search context would be injected
-        # For now, we verify the mocks work correctly
-        from agents.connectors.search import tavily_client
-
-        context = tavily_client.get_search_context(query="Test market")
-
-        assert context == search_context
-
-    @patch("agents.connectors.search.tavily_client")
-    def test_multiple_search_queries(self, mock_client):
-        """Test making multiple search queries."""
-        # Different responses for different queries
-        responses = {
-            "query1": "Context for query 1",
-            "query2": "Context for query 2",
-            "query3": "Context for query 3",
-        }
-
-        def side_effect(query):
-            return responses.get(query, "Default context")
-
-        mock_client.get_search_context.side_effect = side_effect
-
-        from agents.connectors.search import tavily_client
-
-        result1 = tavily_client.get_search_context(query="query1")
-        result2 = tavily_client.get_search_context(query="query2")
-        result3 = tavily_client.get_search_context(query="query3")
-
-        assert result1 == "Context for query 1"
-        assert result2 == "Context for query 2"
-        assert result3 == "Context for query 3"
-
-
-@pytest.mark.integration
 class TestSearchErrorHandling:
     """Test error handling in search functionality."""
 
