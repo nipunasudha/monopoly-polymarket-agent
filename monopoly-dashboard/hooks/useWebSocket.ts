@@ -16,8 +16,8 @@ let connectionCount = 0;
 export function useWebSocket() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const reconnectTimeout = useRef<NodeJS.Timeout>();
-  const pingInterval = useRef<NodeJS.Timeout>();
+  const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
+  const pingInterval = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(true);
   const previousStatusRef = useRef<string | null>(null);
   

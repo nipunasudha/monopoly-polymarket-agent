@@ -107,8 +107,16 @@ export const marketAPI = {
 
 // Markets API
 export const marketsAPI = {
-  getAll: () =>
-    fetchAPI<import('@/lib/types').MarketsResponse>('/api/markets'),
+  getAll: (params?: { closed?: boolean; end_date_min?: string; end_date_max?: string; limit?: number; offset?: number }) => {
+    const queryParams = new URLSearchParams();
+    if (params?.closed !== undefined) queryParams.set('closed', params.closed.toString());
+    if (params?.end_date_min) queryParams.set('end_date_min', params.end_date_min);
+    if (params?.end_date_max) queryParams.set('end_date_max', params.end_date_max);
+    if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
+    if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
+    const queryString = queryParams.toString();
+    return fetchAPI<import('@/lib/types').MarketsResponse>(`/api/markets${queryString ? `?${queryString}` : ''}`);
+  },
 };
 
 // News API

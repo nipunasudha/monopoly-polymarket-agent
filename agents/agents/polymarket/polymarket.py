@@ -192,17 +192,68 @@ class Polymarket:
         )
         print(ctf_approval_tx_receipt)
 
-    def get_all_markets(self) -> "list[SimpleMarket]":
+    def get_all_markets(self, active_only: bool = True, min_days_ahead: int = 0, max_days_ahead: int = 30, category_filter: str = None) -> "list[SimpleMarket]":
+        """
+        Get markets with optional filtering.
+        
+        Args:
+            active_only: Only return active markets
+            min_days_ahead: Minimum days until market end date (0 = today or future)
+            max_days_ahead: Maximum days until market end date (for short-term markets)
+            category_filter: Filter by category/keyword (e.g., 'esports', 'gaming')
+        """
+        from datetime import datetime, timedelta
+        
+        params = {}
+        if active_only:
+            params["active"] = "true"
+            params["closed"] = "false"
+            params["archived"] = "false"
+        
         markets = []
-        res = httpx.get(self.gamma_markets_endpoint)
+        res = httpx.get(self.gamma_markets_endpoint, params=params)
         if res.status_code == 200:
+            now = datetime.utcnow()
+            min_date = now + timedelta(days=min_days_ahead)
+            max_date = now + timedelta(days=max_days_ahead)
+            
             for market in res.json():
                 try:
+                    # Filter by end date
+                    end_date_str = market.get("endDate") or market.get("endDateIso")
+                    if end_date_str:
+                        try:
+                            end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                            if end_date < min_date or end_date > max_date:
+                                continue
+                        except:
+                            pass
+                    
+                    # Filter by category/keyword if specified
+                    if category_filter:
+                        question = market.get("question", "").lower()
+                        description = market.get("description", "").lower()
+                        slug = market.get("slug", "").lower()
+                        category_keywords = category_filter.lower().split()
+                        
+                        # Check if any keyword matches
+                        matches = False
+                        for keyword in category_keywords:
+                            if keyword in question or keyword in description or keyword in slug:
+                                matches = True
+                                break
+                        
+                        if not matches:
+                            continue
+                    
                     market_data = self.map_api_to_market(market)
                     markets.append(SimpleMarket(**market_data))
                 except Exception as e:
                     print(e)
                     pass
+        
+        # Sort by end date (soonest first for short-term markets)
+        markets.sort(key=lambda m: m.end if m.end else "9999-12-31")
         return markets
 
     def filter_markets_for_trading(self, markets: "list[SimpleMarket]"):

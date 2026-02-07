@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import logging
 import json
+import httpx
 
 from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
@@ -181,13 +182,29 @@ class IntervalUpdate(BaseModel):
 # Dashboard Routes (HTML)
 
 @app.get("/api/markets")
-async def get_markets():
-    """Get available markets (with fixture data in dry_run mode)."""
+async def get_markets(
+    closed: Optional[bool] = None,
+    end_date_min: Optional[str] = None,
+    end_date_max: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Get available markets using Polymarket's actual API parameters.
+    
+    Args:
+        closed: Filter by closed status (false for open markets)
+        end_date_min: Minimum end date in ISO format (e.g., '2026-02-07T00:00:00Z')
+        end_date_max: Maximum end date in ISO format
+        limit: Number of markets to return (default: 50)
+        offset: Pagination offset (default: 0)
+    """
     dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
     
     if dry_run:
-        # Return fixture data instantly
-        fixture_markets = [
+        # Return fixture data instantly - filter by date if specified
+        from datetime import datetime, timedelta
+        
+        all_fixture_markets = [
             {
                 "id": "21742633621281841065619472033692432265820606149693301024636724346570693356136",
                 "question": "Will Elon and DOGE cut between $200-250b in federal spending in 2025?",
@@ -198,6 +215,9 @@ async def get_markets():
                 "description": "This market will resolve to 'Yes' if verified government reports show spending cuts between $200-250 billion in 2025.",
                 "volume": 1250000.0,
                 "liquidity": 85000.0,
+                "spread": 0.02,
+                "funded": True,
+                "clob_token_ids": ["token1", "token2"],
             },
             {
                 "id": "mock_trump_approval_q1",
@@ -209,6 +229,9 @@ async def get_markets():
                 "description": "Resolves based on RealClearPolitics average on March 31, 2025.",
                 "volume": 850000.0,
                 "liquidity": 42000.0,
+                "spread": 0.015,
+                "funded": True,
+                "clob_token_ids": ["token3", "token4"],
             },
             {
                 "id": "mock_btc_100k",
@@ -220,6 +243,9 @@ async def get_markets():
                 "description": "This market resolves to 'Yes' if Bitcoin trades at or above $100,000 at any point in 2025.",
                 "volume": 3200000.0,
                 "liquidity": 150000.0,
+                "spread": 0.01,
+                "funded": True,
+                "clob_token_ids": ["token5", "token6"],
             },
             {
                 "id": "mock_ai_agi",
@@ -231,6 +257,9 @@ async def get_markets():
                 "description": "Resolves based on consensus of AI researchers and demonstration of general intelligence.",
                 "volume": 620000.0,
                 "liquidity": 28000.0,
+                "spread": 0.03,
+                "funded": False,
+                "clob_token_ids": [],
             },
             {
                 "id": "mock_fed_rate",
@@ -242,6 +271,9 @@ async def get_markets():
                 "description": "Resolves to 'Yes' if the Federal Reserve's target rate goes below 4.00%.",
                 "volume": 980000.0,
                 "liquidity": 55000.0,
+                "spread": 0.018,
+                "funded": True,
+                "clob_token_ids": ["token7", "token8"],
             },
             {
                 "id": "mock_spacex_starship",
@@ -253,6 +285,9 @@ async def get_markets():
                 "description": "Resolves to 'Yes' if SpaceX successfully lands a Starship on Mars.",
                 "volume": 450000.0,
                 "liquidity": 22000.0,
+                "spread": 0.025,
+                "funded": True,
+                "clob_token_ids": ["token9", "token10"],
             },
             {
                 "id": "mock_recession_2025",
@@ -264,6 +299,9 @@ async def get_markets():
                 "description": "Resolves based on NBER official recession dating.",
                 "volume": 1100000.0,
                 "liquidity": 68000.0,
+                "spread": 0.012,
+                "funded": True,
+                "clob_token_ids": ["token11", "token12"],
             },
             {
                 "id": "mock_ai_regulation",
@@ -275,45 +313,166 @@ async def get_markets():
                 "description": "Resolves to 'Yes' if comprehensive AI regulation is signed into law.",
                 "volume": 380000.0,
                 "liquidity": 19000.0,
+                "spread": 0.022,
+                "funded": False,
+                "clob_token_ids": [],
+            },
+            # Esports markets
+            {
+                "id": "mock_esports_cs2_major",
+                "question": "Will Team Liquid win the CS2 Major Championship this week?",
+                "end": (datetime.utcnow() + timedelta(days=3)).isoformat() + "Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.35", "0.65"],
+                "description": "Resolves to 'Yes' if Team Liquid wins the CS2 Major Championship.",
+                "volume": 250000.0,
+                "liquidity": 15000.0,
+                "spread": 0.015,
+                "funded": True,
+                "clob_token_ids": ["token13", "token14"],
+            },
+            {
+                "id": "mock_esports_valorant",
+                "question": "Will Fnatic win the Valorant Champions Tour match today?",
+                "end": (datetime.utcnow() + timedelta(days=1)).isoformat() + "Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.48", "0.52"],
+                "description": "Resolves based on today's VCT match result.",
+                "volume": 180000.0,
+                "liquidity": 12000.0,
+                "spread": 0.012,
+                "funded": True,
+                "clob_token_ids": ["token15", "token16"],
+            },
+            {
+                "id": "mock_esports_lol",
+                "question": "Will T1 win the League of Legends World Championship finals?",
+                "end": (datetime.utcnow() + timedelta(days=5)).isoformat() + "Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.42", "0.58"],
+                "description": "Resolves to 'Yes' if T1 wins the LoL Worlds finals.",
+                "volume": 320000.0,
+                "liquidity": 18000.0,
+                "spread": 0.018,
+                "funded": True,
+                "clob_token_ids": ["token17", "token18"],
+            },
+            {
+                "id": "mock_esports_dota",
+                "question": "Will Team Spirit win The International Dota 2 tournament?",
+                "end": (datetime.utcnow() + timedelta(days=7)).isoformat() + "Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.28", "0.72"],
+                "description": "Resolves based on The International tournament results.",
+                "volume": 450000.0,
+                "liquidity": 25000.0,
+                "spread": 0.020,
+                "funded": True,
+                "clob_token_ids": ["token19", "token20"],
             },
         ]
-        return {"markets": fixture_markets, "dry_run": True}
+        
+        # Filter fixture markets by date and closed status
+        filtered_fixtures = []
+        
+        for market in all_fixture_markets:
+            # Filter by closed status
+            if closed is not None and market.get("active") == closed:
+                continue
+            
+            # Filter by date range
+            if end_date_min or end_date_max:
+                try:
+                    market_end = datetime.fromisoformat(market["end"].replace('Z', '+00:00'))
+                    
+                    if end_date_min:
+                        min_dt = datetime.fromisoformat(end_date_min.replace('Z', '+00:00'))
+                        if market_end < min_dt:
+                            continue
+                    
+                    if end_date_max:
+                        max_dt = datetime.fromisoformat(end_date_max.replace('Z', '+00:00'))
+                        if market_end > max_dt:
+                            continue
+                except Exception as e:
+                    logger.warning(f"Date parsing error: {e}")
+                    pass
+            
+            filtered_fixtures.append(market)
+        
+        return {"markets": filtered_fixtures, "dry_run": True}
     
-    # Live mode - fetch real markets
+    # Live mode - fetch real markets using correct API parameters
     try:
-        markets = poly.get_all_markets()
+        # Build query parameters matching Polymarket's API
+        params = {
+            "limit": limit,
+            "offset": offset,
+        }
+        
+        if closed is not None:
+            params["closed"] = "true" if closed else "false"
+        
+        if end_date_min:
+            params["end_date_min"] = end_date_min
+        
+        if end_date_max:
+            params["end_date_max"] = end_date_max
+        
+        # Fetch markets from Polymarket API
+        raw_response = httpx.get(poly.gamma_markets_endpoint, params=params, timeout=10.0)
+        raw_markets = raw_response.json() if raw_response.status_code == 200 else []
+        
         markets_data = []
-        for market in markets[:20]:
+        for market in raw_markets:
             # Parse outcomes and outcome_prices from strings to arrays
-            outcomes = market.outcomes
-            outcome_prices = market.outcome_prices
+            outcomes = market.get("outcomes", "")
+            outcome_prices = market.get("outcomePrices", "")
             
             # Try to parse as JSON first, then as comma-separated
             if isinstance(outcomes, str):
                 try:
                     outcomes = json.loads(outcomes)
                 except (json.JSONDecodeError, ValueError):
-                    # Fallback to comma-separated string
                     outcomes = [o.strip() for o in outcomes.split(',')] if outcomes else []
             
             if isinstance(outcome_prices, str):
                 try:
                     outcome_prices = json.loads(outcome_prices)
                 except (json.JSONDecodeError, ValueError):
-                    # Fallback to comma-separated string
                     outcome_prices = [p.strip() for p in outcome_prices.split(',')] if outcome_prices else []
             
+            # Extract volume/liquidity
+            volume = float(market.get("volume", 0)) if market.get("volume") else 0.0
+            liquidity = float(market.get("liquidity", 0)) if market.get("liquidity") else 0.0
+            
+            # Parse clob_token_ids if it's a string
+            clob_token_ids = market.get("clobTokenIds", "")
+            if isinstance(clob_token_ids, str):
+                try:
+                    clob_token_ids = json.loads(clob_token_ids)
+                except (json.JSONDecodeError, ValueError):
+                    clob_token_ids = [t.strip() for t in clob_token_ids.split(',')] if clob_token_ids else []
+            
             markets_data.append({
-                "id": str(market.id),
-                "question": market.question,
-                "end": market.end,
-                "active": market.active,
+                "id": str(market.get("id", "")),
+                "question": market.get("question", ""),
+                "end": market.get("endDate", ""),
+                "active": market.get("active", True),
                 "outcomes": outcomes if isinstance(outcomes, list) else [],
                 "outcome_prices": outcome_prices if isinstance(outcome_prices, list) else [],
-                "description": getattr(market, 'description', ''),
-                "volume": getattr(market, 'volume', 0.0),
-                "liquidity": getattr(market, 'liquidity', 0.0),
+                "description": market.get("description", ""),
+                "volume": volume,
+                "liquidity": liquidity,
+                "spread": float(market.get("spread", 0)) if market.get("spread") else 0.0,
+                "funded": bool(market.get("funded", False)),
+                "clob_token_ids": clob_token_ids if isinstance(clob_token_ids, list) else [],
             })
+        
         return {"markets": markets_data, "dry_run": False}
     except Exception as e:
         logger.error(f"Could not fetch markets: {e}")

@@ -70,6 +70,9 @@ export interface Market {
   description?: string;
   volume?: number;
   liquidity?: number;
+  spread?: number;
+  funded?: boolean;
+  clob_token_ids?: string[];
 }
 
 export interface MarketsResponse {

@@ -121,12 +121,12 @@ export default function HomePage() {
         <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
           <div>
             <dt className="text-sm font-medium text-gray-500">Total Trades</dt>
-            <dd className="mt-1 text-sm text-gray-900">{portfolio.total_trades}</dd>
+            <dd className="mt-1 text-sm text-gray-900">{portfolio?.total_trades || 0}</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Last Updated</dt>
             <dd className="mt-1 text-sm text-gray-900">
-              {new Date(portfolio.created_at).toLocaleString()}
+              {portfolio?.created_at ? new Date(portfolio.created_at).toLocaleString() : 'N/A'}
             </dd>
           </div>
         </dl>
