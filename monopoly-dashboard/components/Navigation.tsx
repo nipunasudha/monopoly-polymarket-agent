@@ -1,0 +1,56 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { TradingModeBadge } from '@/components/TradingModeBadge';
+
+const navItems = [
+  { href: '/', label: 'Portfolio' },
+  { href: '/agent', label: 'Agent' },
+  { href: '/markets', label: 'Markets' },
+  { href: '/trades', label: 'Trades' },
+  { href: '/forecasts', label: 'Forecasts' },
+  { href: '/news', label: 'News' },
+  { href: '/debug', label: 'Debug' },
+];
+
+export function Navigation() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="border-b bg-background">
+      <div className="container flex h-16 items-center justify-between">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center space-x-2">
+            <h1 className="text-xl font-bold">🎲 Monopoly Agents</h1>
+          </Link>
+          <div className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || 
+                (item.href !== '/' && pathname?.startsWith(item.href));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                    'hover:bg-accent hover:text-accent-foreground',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'disabled:pointer-events-none disabled:opacity-50',
+                    isActive && 'bg-accent text-accent-foreground'
+                  )}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex items-center">
+          <TradingModeBadge />
+        </div>
+      </div>
+    </nav>
+  );
+}
