@@ -40,6 +40,7 @@ class Polymarket:
         self.gamma_url = "https://gamma-api.polymarket.com"
         self.gamma_markets_endpoint = self.gamma_url + "/markets"
         self.gamma_events_endpoint = self.gamma_url + "/events"
+        self.gamma_search_endpoint = self.gamma_url + "/public-search"
 
         if self.dry_run:
             print("[DRY RUN] Polymarket initialized in read-only mode")
@@ -334,6 +335,49 @@ class Polymarket:
     def get_all_tradeable_events(self) -> "list[SimpleEvent]":
         all_events = self.get_all_events()
         return self.filter_events_for_trading(all_events)
+
+    def search_markets(self, query: str, limit: int = 20, page: int = 1, closed: bool = False) -> list:
+        """Search markets using Polymarket's powerful search API.
+        
+        Args:
+            query: Search query string
+            limit: Number of results per page (default: 20)
+            page: Page number (default: 1)
+            closed: Include closed markets (default: False)
+        
+        Returns:
+            List of market dictionaries from search results
+        """
+        if not query or len(query.strip()) < 2:
+            return []
+        
+        try:
+            params = {
+                "q": query.strip(),
+                "limit_per_type": limit,
+                "page": page,
+                "events_status": "active" if not closed else None,
+                "keep_closed_markets": 1 if closed else 0,
+                "search_tags": True,
+                "search_profiles": False,
+            }
+            # Remove None values
+            params = {k: v for k, v in params.items() if v is not None}
+            
+            response = httpx.get(self.gamma_search_endpoint, params=params, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                # Extract markets from search results
+                markets = []
+                if "events" in data:
+                    for event in data["events"]:
+                        if "markets" in event and isinstance(event["markets"], list):
+                            markets.extend(event["markets"])
+                return markets[:limit]  # Limit results
+            return []
+        except Exception as e:
+            print(f"[ERROR] Search failed: {e}")
+            return []
 
     def _require_live(self, method_name: str) -> None:
         if self.dry_run:

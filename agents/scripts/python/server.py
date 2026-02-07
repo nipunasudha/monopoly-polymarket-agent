@@ -186,8 +186,9 @@ async def get_markets(
     closed: Optional[bool] = None,
     end_date_min: Optional[str] = None,
     end_date_max: Optional[str] = None,
-    limit: int = 50,
+    limit: int = 20,
     offset: int = 0,
+    q: Optional[str] = None,  # Search query - uses Polymarket's powerful search API
 ):
     """Get available markets using Polymarket's actual API parameters.
     
@@ -195,8 +196,9 @@ async def get_markets(
         closed: Filter by closed status (false for open markets)
         end_date_min: Minimum end date in ISO format (e.g., '2026-02-07T00:00:00Z')
         end_date_max: Maximum end date in ISO format
-        limit: Number of markets to return (default: 50)
+        limit: Number of markets to return (default: 20, reduced to save API quota)
         offset: Pagination offset (default: 0)
+        q: Search query string - uses Polymarket's powerful search API when provided
     """
     dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
     
@@ -408,24 +410,34 @@ async def get_markets(
     
     # Live mode - fetch real markets using correct API parameters
     try:
-        # Build query parameters matching Polymarket's API
-        params = {
-            "limit": limit,
-            "offset": offset,
-        }
-        
-        if closed is not None:
-            params["closed"] = "true" if closed else "false"
-        
-        if end_date_min:
-            params["end_date_min"] = end_date_min
-        
-        if end_date_max:
-            params["end_date_max"] = end_date_max
-        
-        # Fetch markets from Polymarket API
-        raw_response = httpx.get(poly.gamma_markets_endpoint, params=params, timeout=10.0)
-        raw_markets = raw_response.json() if raw_response.status_code == 200 else []
+        # If search query provided, use Polymarket's powerful search API
+        if q and len(q.strip()) >= 2:
+            page = (offset // limit) + 1
+            raw_markets = poly.search_markets(
+                query=q.strip(),
+                limit=limit,
+                page=page,
+                closed=closed if closed is not None else False
+            )
+        else:
+            # Build query parameters matching Polymarket's API
+            params = {
+                "limit": limit,
+                "offset": offset,
+            }
+            
+            if closed is not None:
+                params["closed"] = "true" if closed else "false"
+            
+            if end_date_min:
+                params["end_date_min"] = end_date_min
+            
+            if end_date_max:
+                params["end_date_max"] = end_date_max
+            
+            # Fetch markets from Polymarket API
+            raw_response = httpx.get(poly.gamma_markets_endpoint, params=params, timeout=10.0)
+            raw_markets = raw_response.json() if raw_response.status_code == 200 else []
         
         markets_data = []
         for market in raw_markets:

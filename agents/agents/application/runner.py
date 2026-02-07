@@ -119,23 +119,29 @@ class AgentRunner:
         
         while self.state == AgentState.RUNNING:
             try:
-                # Calculate next run time
-                self.next_run = datetime.utcnow() + timedelta(minutes=self.interval_minutes)
+                # Wait for interval BEFORE running (don't run immediately on start)
+                # next_run was already set in start() method, so UI shows correct time
+                logger.info(f"Waiting until {self.next_run} (next cycle in {self.interval_minutes} minutes)...")
+                await asyncio.sleep(self.interval_minutes * 60)
                 
-                # Emit status with next_run time
-                await self._emit_status_changed()
+                # Check if still running after wait (user might have stopped it)
+                if self.state != AgentState.RUNNING:
+                    break
                 
                 # Run agent cycle
                 result = await self.run_agent_cycle()
+                
+                # Calculate next run time AFTER completing cycle
+                self.next_run = datetime.utcnow() + timedelta(minutes=self.interval_minutes)
+                
+                # Emit status with updated next_run time
+                await self._emit_status_changed()
                 
                 # Log result
                 if result["success"]:
                     logger.info(f"Cycle {self.run_count} completed. Next run: {self.next_run}")
                 else:
                     logger.error(f"Cycle {self.run_count} failed: {result['error']}")
-                
-                # Wait for next cycle
-                await asyncio.sleep(self.interval_minutes * 60)
                 
             except asyncio.CancelledError:
                 logger.info("Agent runner cancelled")
@@ -156,12 +162,14 @@ class AgentRunner:
             return
         
         self.state = AgentState.RUNNING
+        # Set next_run time immediately (agent will wait for interval before first execution)
+        self.next_run = datetime.utcnow() + timedelta(minutes=self.interval_minutes)
         self.task = asyncio.create_task(self._run_loop())
         
-        # Emit status change event immediately
+        # Emit status change event immediately (includes next_run time)
         await self._emit_status_changed()
         
-        logger.info("Agent runner started")
+        logger.info(f"Agent runner started. First execution scheduled for {self.next_run}")
     
     async def stop(self):
         """Stop the agent runner from any state (running or paused)."""

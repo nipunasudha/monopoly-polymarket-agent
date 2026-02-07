@@ -163,16 +163,36 @@ class Executor:
         result = self.llm.invoke(prompt)
         return result.content
 
-    def filter_events_with_rag(self, events: "list[SimpleEvent]") -> str:
+    def filter_events_with_rag(self, events: "list[SimpleEvent]") -> "list[tuple]":
+        """Filter events using RAG (Retrieval Augmented Generation).
+        
+        Returns:
+            List of tuples (Document, score) from similarity search
+        """
+        if not events or len(events) == 0:
+            print("[WARNING] No events to filter, returning empty list")
+            return []
+        
         prompt = self.prompter.filter_events()
         print()
         print("... prompting ... ", prompt)
         print()
-        return self.chroma.events(events, prompt)
+        try:
+            return self.chroma.events(events, prompt)
+        except StopIteration:
+            print("[ERROR] StopIteration caught in chroma.events, returning empty list")
+            return []
+        except Exception as e:
+            print(f"[ERROR] Failed to filter events with RAG: {e}")
+            return []
 
     def map_filtered_events_to_markets(
         self, filtered_events: "list[SimpleEvent]"
     ) -> "list[SimpleMarket]":
+        if not filtered_events or len(filtered_events) == 0:
+            print("[WARNING] No filtered events provided, returning empty markets list")
+            return []
+        
         if self.dry_run:
             # Skip expensive API calls - just create mock markets
             print("[DRY RUN] Fast mode: creating mock markets (no API calls)")
@@ -183,8 +203,21 @@ class Executor:
             selected_events = random.sample(filtered_events, num_events) if len(filtered_events) > num_events else filtered_events
             
             for e in selected_events:
-                data = json.loads(e[0].json())
-                market_ids = data["metadata"]["markets"].split(",")
+                try:
+                    # Validate event structure (should be tuple of (Document, score))
+                    if not isinstance(e, tuple) or len(e) < 1:
+                        print(f"[WARNING] Invalid event format: {type(e)}, skipping")
+                        continue
+                    
+                    data = json.loads(e[0].json())
+                    market_ids_str = data.get("metadata", {}).get("markets", "")
+                    if not market_ids_str:
+                        print("[WARNING] No markets found in event metadata, skipping")
+                        continue
+                    market_ids = market_ids_str.split(",")
+                except (AttributeError, KeyError, TypeError, json.JSONDecodeError) as err:
+                    print(f"[WARNING] Failed to parse event data: {err}, skipping")
+                    continue
                 # Just use first market ID, create mock data
                 market_id = market_ids[0] if market_ids else f"mock_{random.randint(1000, 9999)}"
                 
@@ -208,12 +241,36 @@ class Executor:
         
         markets = []
         for e in filtered_events:
-            data = json.loads(e[0].json())
-            market_ids = data["metadata"]["markets"].split(",")
-            for market_id in market_ids:
-                market_data = self.gamma.get_market(market_id)
-                formatted_market_data = self.polymarket.map_api_to_market(market_data)
-                markets.append(formatted_market_data)
+            try:
+                # Validate event structure (should be tuple of (Document, score))
+                if not isinstance(e, tuple) or len(e) < 1:
+                    print(f"[WARNING] Invalid event format: {type(e)}, skipping")
+                    continue
+                
+                data = json.loads(e[0].json())
+                market_ids_str = data.get("metadata", {}).get("markets", "")
+                if not market_ids_str:
+                    print("[WARNING] No markets found in event metadata, skipping")
+                    continue
+                market_ids = market_ids_str.split(",")
+                
+                for market_id in market_ids:
+                    if not market_id or not market_id.strip():
+                        continue
+                    try:
+                        market_data = self.gamma.get_market(market_id.strip())
+                        if market_data:
+                            formatted_market_data = self.polymarket.map_api_to_market(market_data)
+                            markets.append(formatted_market_data)
+                    except Exception as err:
+                        print(f"[WARNING] Failed to fetch market {market_id}: {err}, skipping")
+                        continue
+            except (AttributeError, KeyError, TypeError, json.JSONDecodeError) as err:
+                print(f"[WARNING] Failed to parse event data: {err}, skipping")
+                continue
+        
+        if not markets:
+            print("[WARNING] No markets successfully mapped from events")
         return markets
 
     def filter_markets(self, markets) -> "list[tuple]":
@@ -224,12 +281,21 @@ class Executor:
         return self.chroma.markets(markets, prompt)
 
     def source_best_trade(self, market_object) -> str:
+        # Validate market_object structure
+        if not isinstance(market_object, tuple) or len(market_object) < 1:
+            raise ValueError(f"Invalid market_object format: expected tuple, got {type(market_object)}")
+        
         if self.dry_run:
             import random
             
-            market_document = market_object[0].dict()
-            market = market_document["metadata"]
-            question = market.get("question", "Mock Market Question")
+            try:
+                market_document = market_object[0].dict()
+                market = market_document.get("metadata", {})
+                question = market.get("question", "Mock Market Question")
+            except (AttributeError, KeyError, TypeError) as e:
+                print(f"[ERROR] Failed to extract market data: {e}")
+                question = "Mock Market Question"
+                market = {}
             
             # Safely parse outcome_prices (could be list or string)
             outcome_prices_raw = market.get("outcome_prices", ['0.5', '0.5'])
@@ -325,8 +391,12 @@ class Executor:
             print(f"[DRY RUN] Generated realistic mock trade: {side} {outcome} @ {prob:.1%} (edge: {edge:.1%})")
             return mock_response
         
-        market_document = market_object[0].dict()
-        market = market_document["metadata"]
+        # Non-dry-run path - also needs validation
+        try:
+            market_document = market_object[0].dict()
+            market = market_document.get("metadata", {})
+        except (AttributeError, KeyError, TypeError) as e:
+            raise ValueError(f"Failed to extract market data from market_object: {e}")
         
         # Safely parse outcome_prices (could be list or string)
         outcome_prices_raw = market.get("outcome_prices", ['0.5', '0.5'])

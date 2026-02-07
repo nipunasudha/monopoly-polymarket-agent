@@ -65,7 +65,10 @@ class PolymarketRAG:
         loader = JSONLoader(
             file_path=json_file_path, jq_schema=".[].description", text_content=False
         )
-        loaded_docs = loader.load()
+        try:
+            loaded_docs = list(loader.load())  # Convert generator to list to avoid StopIteration
+        except StopIteration:
+            loaded_docs = []
 
         embedding_function = LocalEmbeddings()
         Chroma.from_documents(
@@ -98,6 +101,11 @@ class PolymarketRAG:
         return response_docs
 
     def events(self, events: "list[SimpleEvent]", prompt: str) -> "list[tuple]":
+        # Handle empty events list
+        if not events or len(events) == 0:
+            print("[WARNING] No events provided, returning empty results")
+            return []
+        
         # In dry_run mode, use super fast fake matching
         if self.dry_run:
             print(f"[DRY RUN] Fast mode: fake matching for {len(events)} events (no embeddings)")
@@ -130,6 +138,12 @@ class PolymarketRAG:
         
         local_file_path = local_events_directory / "events.json"
         dict_events = [x.dict() for x in events]
+        
+        # Handle empty events list
+        if not dict_events:
+            print("[WARNING] No events to process, returning empty results")
+            return []
+        
         with open(local_file_path, "w+") as output_file:
             json.dump(dict_events, output_file)
 
@@ -145,7 +159,24 @@ class PolymarketRAG:
             text_content=False,
             metadata_func=metadata_func,
         )
-        loaded_docs = loader.load()
+        try:
+            # Convert generator to list to avoid StopIteration in Python 3.7+
+            loaded_docs = []
+            for doc in loader.load():
+                loaded_docs.append(doc)
+        except (StopIteration, RuntimeError) as e:
+            # StopIteration is converted to RuntimeError in Python 3.7+
+            if "StopIteration" in str(e) or isinstance(e, StopIteration):
+                print("[WARNING] StopIteration caught, returning empty results")
+            loaded_docs = []
+        except Exception as e:
+            print(f"[ERROR] Failed to load documents: {e}")
+            loaded_docs = []
+        
+        if not loaded_docs:
+            print("[WARNING] No documents loaded, returning empty results")
+            return []
+        
         embedding_function = LocalEmbeddings()
         vector_db_directory = local_events_directory / "chroma"
         local_db = Chroma.from_documents(
@@ -190,6 +221,12 @@ class PolymarketRAG:
         local_markets_directory.mkdir(exist_ok=True)
         
         local_file_path = local_markets_directory / "markets.json"
+        
+        # Handle empty markets list
+        if not markets:
+            print("[WARNING] No markets to process, returning empty results")
+            return []
+        
         with open(local_file_path, "w+") as output_file:
             json.dump(markets, output_file)
 
@@ -208,7 +245,24 @@ class PolymarketRAG:
             text_content=False,
             metadata_func=metadata_func,
         )
-        loaded_docs = loader.load()
+        try:
+            # Convert generator to list to avoid StopIteration in Python 3.7+
+            loaded_docs = []
+            for doc in loader.load():
+                loaded_docs.append(doc)
+        except (StopIteration, RuntimeError) as e:
+            # StopIteration is converted to RuntimeError in Python 3.7+
+            if "StopIteration" in str(e) or isinstance(e, StopIteration):
+                print("[WARNING] StopIteration caught, returning empty results")
+            loaded_docs = []
+        except Exception as e:
+            print(f"[ERROR] Failed to load documents: {e}")
+            loaded_docs = []
+        
+        if not loaded_docs:
+            print("[WARNING] No documents loaded, returning empty results")
+            return []
+        
         embedding_function = LocalEmbeddings()
         vector_db_directory = local_markets_directory / "chroma"
         local_db = Chroma.from_documents(

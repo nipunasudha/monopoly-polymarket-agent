@@ -44,26 +44,56 @@ class Trader:
 
             events = self.polymarket.get_all_tradeable_events()
             print(f"1. FOUND {len(events)} EVENTS")
+            
+            if not events or len(events) == 0:
+                print("[SKIP] No tradeable events found, skipping cycle")
+                return
 
             filtered_events = self.agent.filter_events_with_rag(events)
             print(f"2. FILTERED {len(filtered_events)} EVENTS")
+            
+            if not filtered_events or len(filtered_events) == 0:
+                print("[SKIP] No events passed filtering, skipping cycle")
+                return
 
             markets = self.agent.map_filtered_events_to_markets(filtered_events)
             print()
             print(f"3. FOUND {len(markets)} MARKETS")
+            
+            if not markets or len(markets) == 0:
+                print("[SKIP] No markets found, skipping cycle")
+                return
 
             print()
             filtered_markets = self.agent.filter_markets(markets)
             print(f"4. FILTERED {len(filtered_markets)} MARKETS")
+            
+            if not filtered_markets or len(filtered_markets) == 0:
+                print("[SKIP] No markets passed filtering, skipping cycle")
+                return
 
+            # Safely get the first market
             market = filtered_markets[0]
+            
+            # Validate market structure
+            if not isinstance(market, tuple) or len(market) < 2:
+                print(f"[ERROR] Invalid market format: {type(market)}, skipping cycle")
+                return
             
             # Extract market data from the tuple (document, score)
             # The document contains the market metadata
-            market_document = market[0].dict()
-            market_metadata = market_document["metadata"]
-            market_id = market_metadata["id"]
-            market_question = market_metadata["question"]
+            try:
+                market_document = market[0].dict()
+                market_metadata = market_document.get("metadata", {})
+                market_id = market_metadata.get("id")
+                market_question = market_metadata.get("question", "Unknown Market")
+                
+                if not market_id:
+                    print("[ERROR] Market ID not found in metadata, skipping cycle")
+                    return
+            except (AttributeError, KeyError, TypeError) as e:
+                print(f"[ERROR] Failed to extract market data: {e}, skipping cycle")
+                return
             
             best_trade = self.agent.source_best_trade(market)
             print(f"5. CALCULATED TRADE {best_trade}")
@@ -155,8 +185,11 @@ class Trader:
                 print(f"   Saved trade ID: {saved_trade.id}")
 
         except Exception as e:
-            print(f"Error: {e}")
-            raise
+            print(f"[ERROR] Trade execution failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Don't re-raise - let the agent continue to next cycle
+            # This prevents the entire agent from crashing on a single failed cycle
 
     def maintain_positions(self):
         pass

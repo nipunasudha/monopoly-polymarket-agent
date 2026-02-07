@@ -107,13 +107,14 @@ export const marketAPI = {
 
 // Markets API
 export const marketsAPI = {
-  getAll: (params?: { closed?: boolean; end_date_min?: string; end_date_max?: string; limit?: number; offset?: number }) => {
+  getAll: (params?: { closed?: boolean; end_date_min?: string; end_date_max?: string; limit?: number; offset?: number; q?: string }) => {
     const queryParams = new URLSearchParams();
     if (params?.closed !== undefined) queryParams.set('closed', params.closed.toString());
     if (params?.end_date_min) queryParams.set('end_date_min', params.end_date_min);
     if (params?.end_date_max) queryParams.set('end_date_max', params.end_date_max);
     if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
     if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
+    if (params?.q && params.q.trim().length >= 2) queryParams.set('q', params.q.trim());
     const queryString = queryParams.toString();
     return fetchAPI<import('@/lib/types').MarketsResponse>(`/api/markets${queryString ? `?${queryString}` : ''}`);
   },

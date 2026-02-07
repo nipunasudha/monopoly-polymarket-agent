@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
   flexRender,
   type ColumnDef,
   type SortingState,
@@ -18,22 +17,45 @@ import type { Market } from '@/lib/types';
 export default function MarketsPage() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDryRun, setIsDryRun] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [daysFilter, setDaysFilter] = useState(7); // Days ahead to filter (7, 30, 90, all)
+  const [daysFilter, setDaysFilter] = useState(7);
   const [showClosed, setShowClosed] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const filterTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isLoadingRef = useRef(false); // Prevent concurrent API calls
+  const offsetRef = useRef(0); // Track offset without causing re-renders
+  const PAGE_SIZE = 20; // Reduced from 50 to save API quota
 
+  // Sync ref with state
   useEffect(() => {
-    loadMarkets();
-  }, [daysFilter, showClosed]);
+    offsetRef.current = offset;
+  }, [offset]);
 
-  const loadMarkets = async () => {
+  const loadMarkets = useCallback(async (reset = false, customOffset?: number) => {
+    // Prevent concurrent calls
+    if (isLoadingRef.current) {
+      return;
+    }
+    
     try {
-      setLoading(true);
+      isLoadingRef.current = true;
+      if (reset) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       setError(null);
+      
+      const currentOffset = customOffset !== undefined ? customOffset : (reset ? 0 : offsetRef.current);
       
       // Calculate end_date_min (now) and end_date_max based on days filter
       const now = new Date();
@@ -46,20 +68,124 @@ export default function MarketsPage() {
         end_date_max = maxDate.toISOString();
       }
       
+      // Use server-side search if query provided, otherwise use regular listing
       const response = await marketsAPI.getAll({
         closed: showClosed ? undefined : false,
-        end_date_min,
-        end_date_max,
-        limit: 100,
+        end_date_min: globalFilter.trim().length >= 2 ? undefined : end_date_min, // Don't apply date filter when searching
+        end_date_max: globalFilter.trim().length >= 2 ? undefined : end_date_max, // Don't apply date filter when searching
+        limit: PAGE_SIZE,
+        offset: currentOffset,
+        q: globalFilter.trim().length >= 2 ? globalFilter.trim() : undefined, // Use Polymarket's powerful search API
       });
-      setMarkets(response.markets);
+      
+      if (reset) {
+        setMarkets(response.markets);
+        setOffset(PAGE_SIZE);
+        offsetRef.current = PAGE_SIZE;
+      } else {
+        setMarkets(prev => [...prev, ...response.markets]);
+        const newOffset = offsetRef.current + PAGE_SIZE;
+        setOffset(newOffset);
+        offsetRef.current = newOffset;
+      }
+      
       setIsDryRun(response.dry_run);
+      
+      // If we received fewer markets than requested, we've reached the end
+      if (response.markets.length < PAGE_SIZE) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load markets');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, [globalFilter, daysFilter, showClosed, PAGE_SIZE]); // Removed offset from deps
+
+  // Debounce filter changes (date/closed filters)
+  useEffect(() => {
+    if (filterTimeoutRef.current) {
+      clearTimeout(filterTimeoutRef.current);
+    }
+    
+    filterTimeoutRef.current = setTimeout(() => {
+      if (!isLoadingRef.current) {
+        setMarkets([]);
+        setOffset(0);
+        setHasMore(true);
+        loadMarkets(true, 0);
+      }
+    }, 500);
+
+    return () => {
+      if (filterTimeoutRef.current) {
+        clearTimeout(filterTimeoutRef.current);
+      }
+    };
+  }, [daysFilter, showClosed]); // Removed loadMarkets from deps to prevent loops
+
+  // Debounce search queries (longer delay to save API quota)
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    
+    // Only search if query is at least 2 characters or empty (to clear search)
+    // If query is 1 character, don't search yet (wait for more input) - saves API quota
+    if (globalFilter.trim().length >= 2 || globalFilter.trim().length === 0) {
+      searchTimeoutRef.current = setTimeout(() => {
+        if (!isLoadingRef.current) {
+          setMarkets([]);
+          setOffset(0);
+          setHasMore(true);
+          loadMarkets(true, 0);
+        }
+      }, 800); // Longer debounce for search to save API quota
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [globalFilter]); // Removed loadMarkets from deps to prevent loops
+
+  const loadMore = useCallback(() => {
+    if (!loadingMore && !loading && hasMore && !isLoadingRef.current) {
+      loadMarkets(false);
+    }
+  }, [loadingMore, loading, hasMore, loadMarkets]);
+
+  // Disabled auto-scroll to save API quota - user must click "Load More"
+  // Setup intersection observer for infinite scroll
+  // useEffect(() => {
+  //   if (observerRef.current) {
+  //     observerRef.current.disconnect();
+  //   }
+
+  //   observerRef.current = new IntersectionObserver(
+  //     (entries) => {
+  //       if (entries[0].isIntersecting) {
+  //         loadMore();
+  //       }
+  //     },
+  //     { threshold: 0.1 }
+  //   );
+
+  //   if (loadMoreRef.current) {
+  //     observerRef.current.observe(loadMoreRef.current);
+  //   }
+
+  //   return () => {
+  //     if (observerRef.current) {
+  //       observerRef.current.disconnect();
+  //     }
+  //   };
+  // }, [loadMore]);
 
   const formatPrice = (price: string) => {
     const num = parseFloat(price);
@@ -258,28 +384,15 @@ export default function MarketsPage() {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn: (row, columnId, filterValue) => {
-      const search = filterValue.toLowerCase();
-      const market = row.original;
-      return (
-        market.question.toLowerCase().includes(search) ||
-        (market.description && market.description.toLowerCase().includes(search)) ||
-        (market.outcomes && market.outcomes.some(o => o.toLowerCase().includes(search)))
-      );
-    },
+    // No client-side filtering - search is done server-side via Polymarket's search API
+    // globalFilterFn removed - all filtering happens on the server
     state: {
       sorting,
       columnFilters,
       globalFilter,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 20,
-      },
     },
   });
 
@@ -319,7 +432,7 @@ export default function MarketsPage() {
           <h3 className="mt-4 text-lg font-medium text-gray-900">Error Loading Markets</h3>
           <p className="mt-2 text-sm text-gray-500">{error}</p>
           <button
-            onClick={loadMarkets}
+            onClick={() => loadMarkets(true)}
             className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
           >
             Retry
@@ -376,7 +489,7 @@ export default function MarketsPage() {
             </span>
           )}
           <button
-            onClick={loadMarkets}
+            onClick={() => loadMarkets(true)}
             className="inline-flex items-center px-2 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
           >
             <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -392,11 +505,11 @@ export default function MarketsPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           {/* Days Ahead Filter */}
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 whitespace-nowrap">Ending within:</label>
+            <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Ending within:</label>
             <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(Number(e.target.value))}
-              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value={7}>7 days</option>
               <option value={30}>30 days</option>
@@ -408,7 +521,7 @@ export default function MarketsPage() {
 
           {/* Show Closed Markets Toggle */}
           <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500 whitespace-nowrap">
+            <label className="text-xs font-medium text-gray-700 whitespace-nowrap cursor-pointer">
               <input
                 type="checkbox"
                 checked={showClosed}
@@ -428,10 +541,10 @@ export default function MarketsPage() {
             </div>
             <input
               type="text"
-              placeholder="Search markets..."
+              placeholder="Search markets (powered by Polymarket search API)..."
               value={globalFilter ?? ''}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="block w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+              className="block w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-md text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             />
             {globalFilter && (
               <button
@@ -509,90 +622,43 @@ export default function MarketsPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
+          {/* Manual Load More - No Auto-scroll to save API quota */}
+          <div className="bg-white px-4 py-3 border-t border-gray-200">
+            <div className="text-center text-sm text-gray-500">
+              Showing {table.getFilteredRowModel().rows.length} of {markets.length} loaded markets
+              {globalFilter && ` (filtered from search)`}
             </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Showing{' '}
-                  <span className="font-medium">{table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}</span>
-                  {' '}to{' '}
-                  <span className="font-medium">
-                    {Math.min(
-                      (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                      table.getFilteredRowModel().rows.length
-                    )}
-                  </span>
-                  {' '}of{' '}
-                  <span className="font-medium">{table.getFilteredRowModel().rows.length}</span>
-                  {' '}results
-                </p>
+            
+            {/* Manual load more button */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="py-4 text-center">
+                {loadingMore ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                    <span className="text-sm text-gray-500">Loading more markets...</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <button
+                      onClick={loadMore}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      Load {PAGE_SIZE} More Markets
+                    </button>
+                    <span className="text-xs text-gray-400">Click to load more (saves API quota)</span>
+                  </div>
+                )}
               </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                  <button
-                    onClick={() => table.setPageIndex(0)}
-                    disabled={!table.getCanPreviousPage()}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">First</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => table.previousPage()}
-                    disabled={!table.getCanPreviousPage()}
-                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">Previous</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
-                    Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-                  </span>
-                  <button
-                    onClick={() => table.nextPage()}
-                    disabled={!table.getCanNextPage()}
-                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">Next</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                    disabled={!table.getCanNextPage()}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">Last</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                      <path fillRule="evenodd" d="M10.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 10l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </nav>
+            )}
+            
+            {!hasMore && markets.length > 0 && (
+              <div className="py-4 text-center text-sm text-gray-500">
+                All available markets loaded ({markets.length} total)
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
