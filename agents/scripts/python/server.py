@@ -1,12 +1,7 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
-import asyncio
 import os
 from typing import List, Optional
-from pathlib import Path
-from fastapi import FastAPI, HTTPException, status, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -37,20 +32,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup templates with multiple directories
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-from jinja2 import FileSystemLoader, Environment
-
-# Configure Jinja2 to search in templates, partials, and components directories
-jinja_env = Environment(loader=FileSystemLoader([
-    str(BASE_DIR / "dashboard" / "templates"),
-    str(BASE_DIR / "dashboard" / "partials"),
-    str(BASE_DIR / "dashboard" / "components"),
-]))
-templates = Jinja2Templates(env=jinja_env)
-
-# Mount static files
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "dashboard" / "static")), name="static")
+# Old UI (HTMX/Alpine.js/Jinja2) and SSE removed - using Next.js + WebSocket only
 
 # Initialize database
 # Note: Database file is created in the agents/ directory
@@ -125,10 +107,6 @@ async def shutdown_event():
         await agent_runner.stop()
         logger.info("Agent runner stopped")
     
-    # Close all SSE connections
-    logger.info("Closing SSE connections...")
-    await broadcaster.close_all_connections()
-    
     logger.info("Shutdown complete")
     logger.info("=" * 60)
 
@@ -196,71 +174,6 @@ class IntervalUpdate(BaseModel):
 
 
 # Dashboard Routes (HTML)
-
-@app.get("/", response_class=HTMLResponse)
-async def dashboard_home(request: Request):
-    """Portfolio overview dashboard."""
-    # Get latest portfolio snapshot
-    portfolio = db.get_latest_portfolio_snapshot()
-    
-    # If no portfolio data, fetch from Polymarket
-    if not portfolio:
-        try:
-            balance = poly.get_usdc_balance()
-            portfolio_data = {
-                "balance": balance,
-                "total_value": balance,
-                "open_positions": 0,
-                "total_pnl": 0.0,
-                "win_rate": 0.0,
-                "total_trades": 0,
-            }
-            portfolio = db.save_portfolio_snapshot(portfolio_data)
-            logger.info(f"Synced Polymarket balance: ${balance:.2f}")
-        except Exception as e:
-            logger.warning(f"Could not fetch Polymarket balance: {e}")
-            portfolio = None
-    
-    # Get portfolio history for chart
-    history = db.get_portfolio_history(limit=30)
-    
-    # Get recent trades
-    recent_trades = db.get_recent_trades(limit=5)
-    
-    return templates.TemplateResponse("portfolio.html", {
-        "request": request,
-        "portfolio": portfolio.to_dict() if portfolio else {},
-        "history": [h.to_dict() for h in history],
-        "recent_trades": [t.to_dict() for t in recent_trades],
-    })
-
-
-@app.get("/markets", response_class=HTMLResponse)
-async def dashboard_markets(request: Request):
-    """Markets scanner dashboard."""
-    # Fetch real markets from Polymarket
-    try:
-        markets = poly.get_all_markets()
-        # Limit to first 20 for display
-        markets_data = []
-        for market in markets[:20]:
-            markets_data.append({
-                "id": market.id,
-                "question": market.question,
-                "end": market.end,
-                "active": market.active,
-                "outcomes": market.outcomes,
-                "outcome_prices": market.outcome_prices,
-            })
-    except Exception as e:
-        logger.warning(f"Could not fetch markets: {e}")
-        markets_data = []
-    
-    return templates.TemplateResponse("markets.html", {
-        "request": request,
-        "markets": markets_data,
-    })
-
 
 @app.get("/api/markets")
 async def get_markets():
@@ -383,46 +296,6 @@ async def get_markets():
         return {"markets": [], "dry_run": False, "error": str(e)}
 
 
-@app.get("/trades", response_class=HTMLResponse)
-async def dashboard_trades(request: Request):
-    """Trade history dashboard."""
-    trades = db.get_recent_trades(limit=50)
-    
-    return templates.TemplateResponse("trades.html", {
-        "request": request,
-        "trades": [t.to_dict() for t in trades],
-    })
-
-
-@app.get("/forecasts", response_class=HTMLResponse)
-async def dashboard_forecasts(request: Request):
-    """Forecasts dashboard."""
-    forecasts = db.get_recent_forecasts(limit=20)
-    
-    return templates.TemplateResponse("forecasts.html", {
-        "request": request,
-        "forecasts": [f.to_dict() for f in forecasts],
-    })
-
-
-@app.get("/agent", response_class=HTMLResponse)
-async def agent_control_page(request: Request):
-    """Agent control panel page."""
-    status_data = agent_runner.get_status()
-    return templates.TemplateResponse("agent.html", {
-        "request": request,
-        "status": status_data
-    })
-
-
-@app.get("/agent/reactive", response_class=HTMLResponse)
-async def agent_control_reactive_page(request: Request):
-    """Agent control panel page (reactive version with Alpine store)."""
-    return templates.TemplateResponse("agent-reactive.html", {
-        "request": request
-    })
-
-
 # API Root endpoint
 @app.get("/api")
 def read_root():
@@ -543,40 +416,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket)
-
-
-# SSE endpoint for realtime updates
-@app.get("/api/events/stream")
-async def event_stream(request: Request):
-    """Server-Sent Events endpoint for realtime updates.
-    
-    Streams events to connected clients:
-    - forecast_created: New forecast generated
-    - trade_executed: Trade executed
-    - portfolio_updated: Portfolio state changed
-    - agent_status_changed: Agent runner state changed
-    - ping: Keepalive message every 30s
-    """
-    async def event_generator():
-        """Generate SSE events for this connection."""
-        try:
-            async for message in broadcaster.connect():
-                # Check if client disconnected
-                if await request.is_disconnected():
-                    break
-                yield message
-        except Exception as e:
-            logger.error(f"SSE stream error: {e}")
-    
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
-    )
 
 
 # Forecast endpoints
@@ -974,126 +813,6 @@ async def run_agent_once():
     """Manually trigger a single agent run."""
     result = await agent_runner.run_once()
     return AgentRunResult(**result)
-
-
-# Partial endpoints for HTMX updates
-@app.get("/partials/portfolio-stats", response_class=HTMLResponse)
-def get_portfolio_stats_partial(request: Request):
-    """Get portfolio stats partial for HTMX updates."""
-    portfolio_data = db.get_latest_portfolio_snapshot()
-    portfolio = portfolio_data.to_dict() if portfolio_data else {
-        "balance": 1000.0,
-        "total_value": 1000.0,
-        "total_pnl": 0.0,
-        "win_rate": 0.0,
-    }
-    return templates.TemplateResponse(
-        "portfolio_stats.html",
-        {"request": request, "portfolio": portfolio}
-    )
-
-
-@app.get("/partials/trade-list", response_class=HTMLResponse)
-def get_trade_list_partial(request: Request, limit: int = 10):
-    """Get trade list partial for HTMX updates."""
-    trades = db.get_recent_trades(limit=limit)
-    return templates.TemplateResponse(
-        "trade_list.html",
-        {"request": request, "trades": trades, "status": None}
-    )
-
-
-@app.get("/partials/forecast-list", response_class=HTMLResponse)
-def get_forecast_list_partial(request: Request, limit: int = 10):
-    """Get forecast list partial for HTMX updates."""
-    forecasts = db.get_recent_forecasts(limit=limit)
-    return templates.TemplateResponse(
-        "forecast_list.html",
-        {"request": request, "forecasts": forecasts}
-    )
-
-
-@app.get("/partials/agent-status", response_class=HTMLResponse)
-def get_agent_status_partial(request: Request):
-    """Get agent status partial for HTMX updates."""
-    status_data = agent_runner.get_status()
-    return templates.TemplateResponse(
-        "agent_status.html",
-        {"request": request, "status": status_data}
-    )
-
-
-@app.get("/partials/agent-controls", response_class=HTMLResponse)
-def get_agent_controls_partial(request: Request):
-    """Get agent controls partial based on current state."""
-    status_data = agent_runner.get_status()
-    return templates.TemplateResponse(
-        "agent_controls.html",
-        {"request": request, "status": status_data}
-    )
-
-
-@app.get("/partials/agent-stats", response_class=HTMLResponse)
-def get_agent_stats_partial(request: Request):
-    """Get agent statistics partial."""
-    status_data = agent_runner.get_status()
-    forecasts = db.get_recent_forecasts(limit=1000)
-    trades = db.get_recent_trades(limit=1000)
-    
-    stats = {
-        "run_count": status_data["run_count"],
-        "error_count": status_data["error_count"],
-        "success_rate": ((status_data["run_count"] - status_data["error_count"]) / status_data["run_count"] * 100) if status_data["run_count"] > 0 else 0,
-        "total_forecasts": len(forecasts),
-        "total_trades": len(trades),
-        "last_run": status_data["last_run"],
-        "next_run": status_data["next_run"],
-    }
-    return templates.TemplateResponse(
-        "agent_stats.html",
-        {"request": request, "stats": stats}
-    )
-
-
-@app.get("/partials/activity-feed", response_class=HTMLResponse)
-def get_activity_feed_partial(request: Request, limit: int = 20):
-    """Get recent activity feed."""
-    # Combine forecasts and trades into activity feed
-    forecasts = db.get_recent_forecasts(limit=limit)
-    trades = db.get_recent_trades(limit=limit)
-    
-    activities = []
-    for f in forecasts:
-        activities.append({
-            "type": "forecast_created",
-            "timestamp": f.created_at,
-            "data": f.to_dict()
-        })
-    for t in trades:
-        activities.append({
-            "type": "trade_executed",
-            "timestamp": t.created_at,
-            "data": t.to_dict()
-        })
-    
-    # Sort by timestamp descending
-    activities.sort(key=lambda x: x["timestamp"], reverse=True)
-    activities = activities[:limit]
-    
-    return templates.TemplateResponse(
-        "activity_feed.html",
-        {"request": request, "activities": activities}
-    )
-
-
-@app.get("/partials/agent-status-display", response_class=HTMLResponse)
-def get_agent_status_display_partial(request: Request):
-    """Get agent status display partial for HTMX updates."""
-    status_data = agent_runner.get_status()
-    return templates.TemplateResponse(
-        "agent_status_display.html",
-        {"request": request, "status": status_data}
-    )
 
 
 @app.put("/api/agent/interval")
