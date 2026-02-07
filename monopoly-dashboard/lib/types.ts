@@ -127,3 +127,26 @@ export interface AgentRunResult {
   completed_at: string;
   error: string | null;
 }
+
+export interface NewsSource {
+  id: string | null;
+  name: string | null;
+}
+
+export interface NewsArticle {
+  source: NewsSource | null;
+  author: string | null;
+  title: string | null;
+  description: string | null;
+  url: string | null;
+  urlToImage: string | null;
+  publishedAt: string | null;
+  content: string | null;
+}
+
+export interface NewsSearchResponse {
+  articles: NewsArticle[];
+  count: number;
+  keywords: string;
+  dry_run?: boolean;
+}

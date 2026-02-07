@@ -12,6 +12,7 @@ from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
 from agents.connectors.events import get_broadcaster
 from agents.polymarket.polymarket import Polymarket
+from agents.connectors.news import News
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,9 @@ db.create_tables()
 
 # Initialize Polymarket client
 poly = Polymarket()
+
+# Initialize News client
+news_client = News()
 
 # Initialize agent runner
 agent_runner = get_agent_runner()
@@ -946,7 +950,154 @@ def sync_markets():
         )
 
 
-# Debug endpoints
+# News endpoints
+@app.get("/api/news/search")
+def search_news(keywords: str):
+    """Search for news articles by keywords.
+    
+    Args:
+        keywords: Comma-separated keywords to search for
+    """
+    try:
+        dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+        
+        # In dry_run mode, return mock news articles
+        if dry_run:
+            import random
+            from datetime import timedelta
+            
+            keyword_list = [k.strip().lower() for k in keywords.split(",")]
+            now = datetime.utcnow()
+            
+            # Generate realistic mock articles based on keywords
+            mock_articles = []
+            num_articles = random.randint(5, 12)
+            
+            # Create articles with content related to keywords
+            for i in range(num_articles):
+                keyword = random.choice(keyword_list) if keyword_list else "market"
+                
+                # Generate realistic titles and descriptions based on keyword
+                titles = {
+                    "xrp": [
+                        f"XRP Price Analysis: {keyword.upper()} Shows Strong Momentum",
+                        f"{keyword.upper()} Adoption Increases as Major Exchanges Add Support",
+                        f"Ripple's {keyword.upper()} Gains Regulatory Clarity",
+                        f"{keyword.upper()} Trading Volume Surges Amid Market Optimism",
+                    ],
+                    "bitcoin": [
+                        f"Bitcoin Reaches New Highs as {keyword.upper()} Demand Grows",
+                        f"{keyword.upper()} Institutional Adoption Accelerates",
+                        f"Bitcoin {keyword.upper()} Market Shows Resilience",
+                    ],
+                    "crypto": [
+                        f"Crypto Market Update: {keyword.upper()} Trends",
+                        f"{keyword.upper()} Cryptocurrency Regulation Developments",
+                        f"Major {keyword.upper()} Crypto Projects Announce Updates",
+                    ],
+                }
+                
+                # Find matching title templates
+                title_templates = []
+                for k, templates in titles.items():
+                    if k in keyword_list:
+                        title_templates.extend(templates)
+                
+                if not title_templates:
+                    title_templates = [
+                        f"{keyword.upper()} Market Analysis: Key Trends and Developments",
+                        f"Latest Updates on {keyword.upper()} Trading and Investment",
+                        f"{keyword.upper()} Shows Promising Growth Potential",
+                    ]
+                
+                title = random.choice(title_templates)
+                
+                descriptions = [
+                    f"Recent developments in {keyword} markets show significant activity and investor interest.",
+                    f"Analysis of {keyword} trends reveals interesting patterns and potential opportunities.",
+                    f"Market experts weigh in on the future of {keyword} and its impact on trading.",
+                    f"Breaking news: {keyword} sees major developments that could affect market dynamics.",
+                ]
+                
+                sources = [
+                    {"id": "reuters", "name": "Reuters"},
+                    {"id": "bloomberg", "name": "Bloomberg"},
+                    {"id": "coindesk", "name": "CoinDesk"},
+                    {"id": "cointelegraph", "name": "Cointelegraph"},
+                    {"id": "the-block", "name": "The Block"},
+                    {"id": "decrypt", "name": "Decrypt"},
+                ]
+                
+                source = random.choice(sources)
+                authors = ["John Smith", "Sarah Johnson", "Michael Chen", "Emily Davis", "David Wilson"]
+                
+                # Generate random publish date (within last 7 days)
+                hours_ago = random.randint(1, 168)  # 1 hour to 7 days ago
+                published_at = (now - timedelta(hours=hours_ago)).isoformat()
+                
+                article_dict = {
+                    "source": source,
+                    "author": random.choice(authors),
+                    "title": title,
+                    "description": random.choice(descriptions),
+                    "url": f"https://example.com/news/{keyword}-{i}",
+                    "urlToImage": f"https://picsum.photos/400/300?random={i}",
+                    "publishedAt": published_at,
+                    "content": f"Full article content about {keyword} and related market developments. This is mock content for testing purposes in dry_run mode.",
+                }
+                mock_articles.append(article_dict)
+            
+            return {
+                "articles": mock_articles,
+                "count": len(mock_articles),
+                "keywords": keywords,
+                "dry_run": True,
+            }
+        
+        # Live mode - use real NewsAPI
+        # Check if NewsAPI key is configured
+        if not os.getenv("NEWSAPI_API_KEY"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="NewsAPI API key not configured. Set NEWSAPI_API_KEY in .env file."
+            )
+        
+        articles = news_client.get_articles_for_cli_keywords(keywords)
+        
+        # Convert Article objects to dictionaries
+        articles_data = []
+        for article in articles:
+            article_dict = {
+                "source": {
+                    "id": article.source.id if article.source else None,
+                    "name": article.source.name if article.source else None,
+                } if article.source else None,
+                "author": article.author,
+                "title": article.title,
+                "description": article.description,
+                "url": article.url,
+                "urlToImage": article.urlToImage,
+                "publishedAt": article.publishedAt,
+                "content": article.content,
+            }
+            articles_data.append(article_dict)
+        
+        return {
+            "articles": articles_data,
+            "count": len(articles_data),
+            "keywords": keywords,
+            "dry_run": False,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to search news: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search news: {str(e)}"
+        )
+
+
 @app.post("/api/debug/clear-all")
 async def clear_all_records():
     """Clear all records from the database. Use with caution!

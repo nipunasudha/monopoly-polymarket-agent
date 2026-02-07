@@ -111,6 +111,12 @@ export const marketsAPI = {
     fetchAPI<import('@/lib/types').MarketsResponse>('/api/markets'),
 };
 
+// News API
+export const newsAPI = {
+  search: (keywords: string) =>
+    fetchAPI<import('@/lib/types').NewsSearchResponse>(`/api/news/search?keywords=${encodeURIComponent(keywords)}`),
+};
+
 // Health check
 export const healthAPI = {
   check: () => 
