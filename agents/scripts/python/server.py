@@ -37,6 +37,9 @@ jinja_env = Environment(loader=FileSystemLoader([
 ]))
 templates = Jinja2Templates(env=jinja_env)
 
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "dashboard" / "static")), name="static")
+
 # Initialize database
 # Note: Database file is created in the agents/ directory
 # It's ignored by git (see .gitignore)
@@ -241,6 +244,14 @@ async def agent_control_page(request: Request):
     return templates.TemplateResponse("agent.html", {
         "request": request,
         "status": status_data
+    })
+
+
+@app.get("/agent/reactive", response_class=HTMLResponse)
+async def agent_control_reactive_page(request: Request):
+    """Agent control panel page (reactive version with Alpine store)."""
+    return templates.TemplateResponse("agent-reactive.html", {
+        "request": request
     })
 
 

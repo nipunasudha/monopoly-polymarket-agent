@@ -20,11 +20,14 @@
     <!-- Alpine.js for simple interactivity -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
     
+    <!-- Agent Reactive Store -->
+    <script src="/static/js/agent-store.js"></script>
+    
     <style>
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50" hx-ext="sse" sse-connect="/api/events/stream">
+<body class="bg-gray-50" x-data x-init="$store.agent.init()">
     <!-- Navigation -->
     <nav class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -52,14 +55,22 @@
                     </div>
                 </div>
                 <div class="flex items-center">
-                    <div class="flex-shrink-0" 
-                         id="agent-status-indicator"
-                         hx-get="/partials/agent-status"
-                         hx-trigger="sse:agent_status_changed"
-                         hx-swap="innerHTML">
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                            <span class="w-2 h-2 mr-2 bg-green-500 rounded-full"></span>
-                            Active
+                    <div class="flex-shrink-0" x-data>
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium"
+                              :class="{
+                                  'bg-green-100 text-green-800': $store.agent.status.state === 'running',
+                                  'bg-gray-100 text-gray-800': $store.agent.status.state === 'stopped',
+                                  'bg-yellow-100 text-yellow-800': $store.agent.status.state === 'paused',
+                                  'bg-red-100 text-red-800': $store.agent.status.state === 'error'
+                              }">
+                            <span class="w-2 h-2 mr-2 rounded-full"
+                                  :class="{
+                                      'bg-green-500': $store.agent.status.state === 'running',
+                                      'bg-gray-500': $store.agent.status.state === 'stopped',
+                                      'bg-yellow-500': $store.agent.status.state === 'paused',
+                                      'bg-red-500': $store.agent.status.state === 'error'
+                                  }"></span>
+                            <span x-text="$store.agent.stateLabel"></span>
                         </span>
                     </div>
                 </div>
