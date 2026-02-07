@@ -104,6 +104,7 @@ export type WSMessage =
   | { type: 'forecast_created'; data: Forecast; timestamp: string }
   | { type: 'trade_executed'; data: Trade; timestamp: string }
   | { type: 'portfolio_updated'; data: PortfolioSnapshot; timestamp: string }
+  | { type: 'data_cleared'; data: { forecasts_deleted: number; trades_deleted: number; portfolio_snapshots_deleted: number; total_deleted: number }; timestamp: string }
   | { type: 'pong'; timestamp: string };
 
 export type WSCommand = 

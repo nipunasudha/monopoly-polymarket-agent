@@ -1,25 +1,45 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { portfolioAPI } from '@/lib/api';
 import { useAgentStore } from '@/stores/agentStore';
 
 export default function HomePage() {
   const portfolio = useAgentStore((state) => state.portfolio);
   const patchRealtime = useAgentStore((state) => state.patchRealtime);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
+
+  // Check if portfolio is empty/default (no real data)
+  const isEmptyPortfolio = !portfolio || 
+    (portfolio.balance === 0 && portfolio.total_trades === 0 && portfolio.total_value === 0 && portfolio.id === 0);
 
   useEffect(() => {
-    if (!portfolio) {
+    // Always fetch on mount to ensure we have latest data
+    // This fixes the issue where new tabs don't have data
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
       setLoading(true);
       portfolioAPI.getCurrent()
         .then((data) => {
+          // Always update with API data (even if it's empty/default)
           patchRealtime({ portfolio: data });
+          setLoading(false);
         })
-        .catch((err) => console.error('[Portfolio] Failed to fetch:', err))
-        .finally(() => setLoading(false));
+        .catch((err) => {
+          console.error('[Portfolio] Failed to fetch:', err);
+          setLoading(false);
+        });
     }
-  }, [portfolio, patchRealtime]);
+  }, []); // Only run on mount
+
+  // Stop loading when we get portfolio data from WebSocket (if API hasn't loaded yet)
+  useEffect(() => {
+    if (portfolio && loading) {
+      // WebSocket sent data, stop loading
+      setLoading(false);
+    }
+  }, [portfolio, loading]);
   
   const stats = [
     {
@@ -42,10 +62,29 @@ export default function HomePage() {
     },
   ];
   
-  if (loading || !portfolio) {
+  // Show loading only if we're actively fetching and have no data
+  if (loading && !portfolio) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  // If we have portfolio (even if empty), show it
+  // If no portfolio after fetch, show empty state
+  if (!portfolio && !loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Portfolio Overview</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            No portfolio data available
+          </p>
+        </div>
+        <div className="bg-white shadow rounded-lg p-6">
+          <p className="text-sm text-gray-500">Start the agent to generate portfolio data.</p>
+        </div>
       </div>
     );
   }

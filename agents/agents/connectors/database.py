@@ -431,3 +431,38 @@ class Database:
             for snapshot in snapshots:
                 session.expunge(snapshot)
             return snapshots
+    
+    # Debug operations
+    
+    def clear_all_records(self) -> dict:
+        """Clear all records from all tables. Use with caution!
+        
+        Returns:
+            Dictionary with counts of deleted records
+        """
+        session = self.SessionLocal()
+        try:
+            # Count records before deletion
+            forecast_count = session.query(ForecastRecord).count()
+            trade_count = session.query(TradeRecord).count()
+            portfolio_count = session.query(PortfolioSnapshot).count()
+            
+            # Delete all records (synchronize_session=False for better performance)
+            session.query(ForecastRecord).delete(synchronize_session=False)
+            session.query(TradeRecord).delete(synchronize_session=False)
+            session.query(PortfolioSnapshot).delete(synchronize_session=False)
+            
+            # Explicit commit to ensure changes are persisted
+            session.commit()
+            
+            return {
+                "forecasts_deleted": forecast_count,
+                "trades_deleted": trade_count,
+                "portfolio_snapshots_deleted": portfolio_count,
+                "total_deleted": forecast_count + trade_count + portfolio_count,
+            }
+        except Exception as e:
+            session.rollback()
+            raise
+        finally:
+            session.close()

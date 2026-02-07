@@ -164,16 +164,18 @@ class AgentRunner:
         logger.info("Agent runner started")
     
     async def stop(self):
-        """Stop the agent runner."""
-        if self.state != AgentState.RUNNING:
-            logger.warning("Agent is not running")
+        """Stop the agent runner from any state (running or paused)."""
+        if self.state == AgentState.STOPPED:
+            logger.warning("Agent is already stopped")
             return
         
+        was_paused = self.state == AgentState.PAUSED
         self.state = AgentState.STOPPED
         
         # Emit status change event
         await self._emit_status_changed()
         
+        # Cancel task if it exists (only exists when running, not when paused)
         if self.task:
             self.task.cancel()
             try:
@@ -182,7 +184,7 @@ class AgentRunner:
                 pass
         
         self.next_run = None
-        logger.info("Agent runner stopped")
+        logger.info(f"Agent runner stopped (was {'paused' if was_paused else 'running'})")
     
     async def pause(self):
         """Pause the agent runner."""

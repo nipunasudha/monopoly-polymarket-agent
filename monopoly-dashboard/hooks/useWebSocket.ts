@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useAgentStore } from '@/stores/agentStore';
 import type { WSMessage, WSCommand } from '@/lib/types';
 
@@ -18,9 +19,11 @@ export function useWebSocket() {
   const reconnectTimeout = useRef<NodeJS.Timeout>();
   const pingInterval = useRef<NodeJS.Timeout>();
   const isMounted = useRef(true);
+  const previousStatusRef = useRef<string | null>(null);
   
   const patchRealtime = useAgentStore((s) => s.patchRealtime);
   const addActivity = useAgentStore((s) => s.addActivity);
+  const reset = useAgentStore((s) => s.reset);
 
   const handleMessage = useCallback(
     (message: WSMessage) => {
@@ -28,12 +31,43 @@ export function useWebSocket() {
 
       switch (message.type) {
         case 'init':
+          // Set initial state without showing toast
+          previousStatusRef.current = message.data.agent.state;
           patchRealtime({
             agent: message.data.agent,
             portfolio: message.data.portfolio,
           });
           break;
         case 'agent_status_changed':
+          const newState = message.data.state;
+          const previousState = previousStatusRef.current;
+          
+          // Show toast only if state actually changed (not on initial load)
+          if (previousState !== null && previousState !== newState) {
+            switch (newState) {
+              case 'running':
+                if (previousState === 'paused') {
+                  toast.success('Agent resumed', { duration: 3000 });
+                } else {
+                  toast.success('Agent started', { duration: 3000 });
+                }
+                break;
+              case 'paused':
+                toast.info('Agent paused', { duration: 3000 });
+                break;
+              case 'stopped':
+                toast('Agent stopped', { duration: 3000 });
+                break;
+              case 'error':
+                toast.error('Agent error', {
+                  description: message.data.last_error || 'An error occurred',
+                  duration: 5000,
+                });
+                break;
+            }
+          }
+          
+          previousStatusRef.current = newState;
           patchRealtime({ agent: message.data });
           break;
         case 'portfolio_updated':
@@ -45,11 +79,20 @@ export function useWebSocket() {
         case 'trade_executed':
           addActivity('trade', message.data);
           break;
+        case 'data_cleared':
+          // Reset the store when data is cleared
+          reset();
+          patchRealtime({
+            portfolio: null,
+            activities: [],
+          });
+          console.log('[WebSocket] Data cleared:', message.data);
+          break;
         case 'pong':
           break;
       }
     },
-    [patchRealtime, addActivity]
+    [patchRealtime, addActivity, reset]
   );
   
   const connect = useCallback(() => {

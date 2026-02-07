@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
 import { WebSocketProvider } from "@/providers/WebSocketProvider";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,6 +21,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <WebSocketProvider>
+          <Toaster position="top-right" richColors />
           <div className="min-h-screen bg-gray-50">
             {/* Navigation */}
             <nav className="bg-white shadow-sm border-b border-gray-200">
@@ -59,6 +61,12 @@ export default function RootLayout({
                         className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                       >
                         Forecasts
+                      </Link>
+                      <Link
+                        href="/debug"
+                        className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                      >
+                        Debug
                       </Link>
                     </div>
                   </div>

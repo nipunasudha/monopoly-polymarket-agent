@@ -116,3 +116,16 @@ export const healthAPI = {
   check: () => 
     fetchAPI<{ status: string; timestamp: string }>('/health'),
 };
+
+// Debug API
+export const debugAPI = {
+  clearAll: () => 
+    fetchAPI<{
+      status: string;
+      message: string;
+      forecasts_deleted: number;
+      trades_deleted: number;
+      portfolio_snapshots_deleted: number;
+      total_deleted: number;
+    }>('/api/debug/clear-all', { method: 'POST' }),
+};

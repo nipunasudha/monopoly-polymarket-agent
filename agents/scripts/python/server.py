@@ -364,7 +364,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
             
             elif action == "stop":
-                if agent_runner.state.value == "running":
+                if agent_runner.state.value != "stopped":
                     await agent_runner.stop()
                     await websocket.send_json({
                         "type": "agent_status_changed",
@@ -779,11 +779,11 @@ async def start_agent():
 
 @app.post("/api/agent/stop")
 async def stop_agent():
-    """Stop the agent background runner."""
-    if agent_runner.state.value != "running":
+    """Stop the agent background runner from any state (running or paused)."""
+    if agent_runner.state.value == "stopped":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Agent is not running"
+            detail="Agent is already stopped"
         )
     
     await agent_runner.stop()
@@ -943,6 +943,45 @@ def sync_markets():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to sync markets: {str(e)}"
+        )
+
+
+# Debug endpoints
+@app.post("/api/debug/clear-all")
+async def clear_all_records():
+    """Clear all records from the database. Use with caution!
+    
+    This will delete all forecasts, trades, and portfolio snapshots.
+    """
+    try:
+        result = db.clear_all_records()
+        logger.warning(f"All records cleared: {result}")
+        
+        # Broadcast to all WebSocket clients that data was cleared
+        # Send empty portfolio
+        await broadcaster.broadcast("portfolio_updated", {
+            "balance": 0.0,
+            "total_value": 0.0,
+            "open_positions": 0,
+            "total_pnl": 0.0,
+            "win_rate": None,
+            "total_trades": 0,
+            "created_at": datetime.utcnow().isoformat(),
+        })
+        
+        # Also send a reset message
+        await broadcaster.broadcast("data_cleared", result)
+        
+        return {
+            "status": "success",
+            "message": "All records cleared successfully",
+            **result,
+        }
+    except Exception as e:
+        logger.error(f"Failed to clear records: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear records: {str(e)}"
         )
 
 
