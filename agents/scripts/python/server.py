@@ -2,13 +2,15 @@
 import asyncio
 from typing import List, Optional
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, status, Request
+from fastapi import FastAPI, HTTPException, status, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 import logging
+import json
 
 from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
@@ -23,6 +25,15 @@ app = FastAPI(
     title="Monopoly Agents API",
     description="API for Polymarket prediction agent system",
     version="0.1.0",
+)
+
+# Add CORS middleware for Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Setup templates with multiple directories
@@ -56,6 +67,38 @@ agent_runner = get_agent_runner()
 broadcaster = get_broadcaster()
 
 
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+    
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(f"WebSocket connected. Total connections: {len(self.active_connections)}")
+    
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        logger.info(f"WebSocket disconnected. Total connections: {len(self.active_connections)}")
+    
+    async def broadcast(self, message: dict):
+        """Broadcast message to all connected WebSocket clients."""
+        dead_connections = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception as e:
+                logger.error(f"Error sending to WebSocket: {e}")
+                dead_connections.append(connection)
+        
+        # Clean up dead connections
+        for conn in dead_connections:
+            self.disconnect(conn)
+
+ws_manager = ConnectionManager()
+
+
 # Lifecycle events
 @app.on_event("startup")
 async def startup_event():
@@ -63,6 +106,9 @@ async def startup_event():
     logger.info("Application starting up...")
     logger.info("Agent runner initialized (not started)")
     logger.info("Use POST /api/agent/start to begin automated trading")
+    
+    # Connect broadcaster to WebSocket manager
+    broadcaster.set_ws_manager(ws_manager)
 
 
 @app.on_event("shutdown")
@@ -271,6 +317,105 @@ def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates and bidirectional communication."""
+    await ws_manager.connect(websocket)
+    
+    try:
+        # Send initial state
+        portfolio = db.get_latest_portfolio_snapshot()
+        portfolio_data = portfolio.to_dict() if portfolio else {
+            "id": 0,
+            "balance": 0.0,
+            "total_value": 0.0,
+            "open_positions": 0,
+            "total_pnl": 0.0,
+            "win_rate": None,
+            "total_trades": 0,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        await websocket.send_json({
+            "type": "init",
+            "data": {
+                "agent": agent_runner.get_status(),
+                "portfolio": portfolio_data
+            }
+        })
+        
+        # Listen for commands
+        while True:
+            data = await websocket.receive_json()
+            action = data.get("action")
+            
+            logger.info(f"WebSocket command received: {action}")
+            
+            if action == "start":
+                if agent_runner.state.value != "running":
+                    await agent_runner.start()
+                    await websocket.send_json({
+                        "type": "agent_status_changed",
+                        "data": agent_runner.get_status(),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            
+            elif action == "stop":
+                if agent_runner.state.value == "running":
+                    await agent_runner.stop()
+                    await websocket.send_json({
+                        "type": "agent_status_changed",
+                        "data": agent_runner.get_status(),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            
+            elif action == "pause":
+                if agent_runner.state.value == "running":
+                    await agent_runner.pause()
+                    await websocket.send_json({
+                        "type": "agent_status_changed",
+                        "data": agent_runner.get_status(),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            
+            elif action == "resume":
+                if agent_runner.state.value == "paused":
+                    await agent_runner.resume()
+                    await websocket.send_json({
+                        "type": "agent_status_changed",
+                        "data": agent_runner.get_status(),
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            
+            elif action == "run_once":
+                result = await agent_runner.run_once()
+                await websocket.send_json({
+                    "type": "agent_run_result",
+                    "data": result,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                # Refresh status after run
+                await websocket.send_json({
+                    "type": "agent_status_changed",
+                    "data": agent_runner.get_status(),
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            
+            elif action == "ping":
+                await websocket.send_json({
+                    "type": "pong",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+    
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket)
+
+
 # SSE endpoint for realtime updates
 @app.get("/api/events/stream")
 async def event_stream(request: Request):
@@ -423,9 +568,15 @@ def get_portfolio():
     """Get current portfolio state."""
     snapshot = db.get_latest_portfolio_snapshot()
     if not snapshot:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No portfolio data available",
+        # Return default portfolio if none exists
+        return PortfolioResponse(
+            balance=0.0,
+            total_value=0.0,
+            open_positions=0,
+            total_pnl=0.0,
+            win_rate=None,
+            total_trades=0,
+            created_at=datetime.utcnow().isoformat(),
         )
     return PortfolioResponse(
         balance=snapshot.balance,

@@ -18,6 +18,11 @@ class EventBroadcaster:
         self._connections: Set[asyncio.Queue] = set()
         self._lock = asyncio.Lock()
         self._shutdown = False
+        self._ws_manager = None  # Will be set by server
+    
+    def set_ws_manager(self, ws_manager):
+        """Set the WebSocket manager for broadcasting to WS clients."""
+        self._ws_manager = ws_manager
     
     async def connect(self) -> AsyncGenerator[str, None]:
         """Create a new SSE connection.
@@ -51,24 +56,36 @@ class EventBroadcaster:
                 self._connections.discard(queue)
     
     async def broadcast(self, event_type: str, data: Dict[str, Any]):
-        """Broadcast an event to all connected clients.
+        """Broadcast an event to all connected clients (SSE and WebSocket).
         
         Args:
             event_type: Type of event (e.g., "forecast_created", "trade_executed")
             data: Event data dictionary
         """
-        if not self._connections:
+        if not self._connections and not (self._ws_manager and self._ws_manager.active_connections):
             return
         
         message = self._format_sse_message(event_type, data)
         
+        # Broadcast to SSE connections
         async with self._lock:
-            # Send to all connected clients
             for queue in self._connections:
                 try:
                     await queue.put(message)
                 except Exception as e:
-                    logger.error(f"Error broadcasting to client: {e}")
+                    logger.error(f"Error broadcasting to SSE client: {e}")
+        
+        # Broadcast to WebSocket connections
+        if self._ws_manager:
+            try:
+                ws_message = {
+                    "type": event_type,
+                    "data": data,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                await self._ws_manager.broadcast(ws_message)
+            except Exception as e:
+                logger.error(f"Error broadcasting to WebSocket: {e}")
     
     def _format_sse_message(self, event_type: str, data: Dict[str, Any]) -> str:
         """Format data as SSE message.

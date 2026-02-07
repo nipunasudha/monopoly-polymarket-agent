@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import random
 from pathlib import Path
 
 import torch
@@ -8,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.document_loaders import JSONLoader
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
 
 _DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -15,17 +17,31 @@ _DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
 _CHROMA_BASE_DIR = Path(__file__).parent.parent.parent / ".chroma_db"
 _CHROMA_BASE_DIR.mkdir(exist_ok=True)
 
+# Check if we're in dry_run mode
+_DRY_RUN = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+
 
 class LocalEmbeddings(Embeddings):
     """Local embedding model using sentence-transformers with MPS (Apple GPU) acceleration."""
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self._model = SentenceTransformer(model_name, device=_DEVICE)
+        # Skip model loading in dry_run mode
+        if _DRY_RUN:
+            print("[DRY RUN] Skipping embedding model load (using fake embeddings)")
+            self._model = None
+        else:
+            self._model = SentenceTransformer(model_name, device=_DEVICE)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if _DRY_RUN:
+            # Return fake embeddings - just random vectors
+            return [[random.random() for _ in range(384)] for _ in texts]
         return self._model.encode(texts, convert_to_numpy=True).tolist()
 
     def embed_query(self, text: str) -> list[float]:
+        if _DRY_RUN:
+            # Return fake embedding
+            return [random.random() for _ in range(384)]
         return self._model.encode([text], convert_to_numpy=True)[0].tolist()
 
 
@@ -38,10 +54,10 @@ class PolymarketRAG:
         self.gamma_client = GammaMarketClient()
         self.local_db_directory = local_db_directory
         self.embedding_function = embedding_function
-        self.dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+        self.dry_run = _DRY_RUN
         
         if self.dry_run:
-            print("[DRY RUN] RAG initialized - using lightweight embedding mode")
+            print("[DRY RUN] RAG initialized - using fast mode (no model loading, fake embeddings)")
 
     def load_json_from_local(
         self, json_file_path=None, vector_db_directory="./local_db"
@@ -82,31 +98,33 @@ class PolymarketRAG:
         return response_docs
 
     def events(self, events: "list[SimpleEvent]", prompt: str) -> "list[tuple]":
-        # In dry_run mode, skip embedding and return simple text match
-        if self.dry_run and len(events) <= 20:
-            print(f"[DRY RUN] Skipping embeddings, using simple text matching for {len(events)} events")
-            # Simple keyword matching instead of vector search
+        # In dry_run mode, use super fast fake matching
+        if self.dry_run:
+            print(f"[DRY RUN] Fast mode: fake matching for {len(events)} events (no embeddings)")
+            # Simple random selection with keyword bonus
             results = []
             prompt_lower = prompt.lower()
-            for event in events[:5]:  # Return top 5 matches
+            
+            for event in events[:10]:  # Consider first 10
                 desc_lower = event.description.lower()
-                # Simple scoring based on keyword overlap
-                score = sum(word in desc_lower for word in prompt_lower.split())
-                if score > 0:
-                    # Mock Document object for compatibility
-                    from langchain_core.documents import Document
-                    doc = Document(
-                        page_content=event.description,
-                        metadata={
-                            "id": event.id,
-                            "markets": event.markets
-                        }
-                    )
-                    results.append((doc, 1.0 - (score * 0.1)))  # Lower score is better
-            return results if results else [(None, 1.0)]
+                # Give small bonus for keyword matches, otherwise random
+                keyword_bonus = sum(1 for word in prompt_lower.split() if word in desc_lower)
+                score = random.uniform(0.5, 1.0) - (keyword_bonus * 0.05)
+                
+                doc = Document(
+                    page_content=event.description,
+                    metadata={
+                        "id": event.id,
+                        "markets": event.markets
+                    }
+                )
+                results.append((doc, score))
+            
+            # Sort by score (lower is better) and return top 5
+            results.sort(key=lambda x: x[1])
+            return results[:5] if results else [(Document(page_content=""), 1.0)]
         
-        # Full embedding search for production or large datasets
-        # create local json file with absolute path
+        # Full embedding search for production
         local_events_directory = _CHROMA_BASE_DIR / "events"
         local_events_directory.mkdir(exist_ok=True)
         
@@ -115,12 +133,9 @@ class PolymarketRAG:
         with open(local_file_path, "w+") as output_file:
             json.dump(dict_events, output_file)
 
-        # create vector db
         def metadata_func(record: dict, metadata: dict) -> dict:
-
             metadata["id"] = record.get("id")
             metadata["markets"] = record.get("markets")
-
             return metadata
 
         loader = JSONLoader(
@@ -137,39 +152,40 @@ class PolymarketRAG:
             loaded_docs, embedding_function, persist_directory=str(vector_db_directory)
         )
 
-        # query
         return local_db.similarity_search_with_score(query=prompt)
 
     def markets(self, markets: "list[SimpleMarket]", prompt: str) -> "list[tuple]":
-        # In dry_run mode, skip embedding and return simple text match
-        if self.dry_run and len(markets) <= 20:
-            print(f"[DRY RUN] Skipping embeddings, using simple text matching for {len(markets)} markets")
-            # Simple keyword matching instead of vector search
+        # In dry_run mode, use super fast fake matching
+        if self.dry_run:
+            print(f"[DRY RUN] Fast mode: fake matching for {len(markets)} markets (no embeddings)")
+            # Simple random selection with keyword bonus
             results = []
             prompt_lower = prompt.lower()
-            for market in markets[:5]:  # Return top 5 matches
-                desc = getattr(market, 'description', market.get('question', ''))
+            
+            for market in markets[:10]:  # Consider first 10
+                desc = getattr(market, 'description', market.get('question', '')) if hasattr(market, 'description') else str(market.get('question', ''))
                 desc_lower = str(desc).lower()
-                # Simple scoring based on keyword overlap
-                score = sum(word in desc_lower for word in prompt_lower.split())
-                if score > 0:
-                    # Mock Document object for compatibility
-                    from langchain_core.documents import Document
-                    doc = Document(
-                        page_content=desc,
-                        metadata={
-                            "id": market.get("id") if isinstance(market, dict) else market.id,
-                            "outcomes": market.get("outcomes") if isinstance(market, dict) else market.outcomes,
-                            "outcome_prices": market.get("outcome_prices") if isinstance(market, dict) else market.outcome_prices,
-                            "question": market.get("question") if isinstance(market, dict) else market.question,
-                            "clob_token_ids": market.get("clob_token_ids") if isinstance(market, dict) else market.clob_token_ids,
-                        }
-                    )
-                    results.append((doc, 1.0 - (score * 0.1)))  # Lower score is better
-            return results if results else [(None, 1.0)]
+                # Give small bonus for keyword matches, otherwise random
+                keyword_bonus = sum(1 for word in prompt_lower.split() if word in desc_lower)
+                score = random.uniform(0.5, 1.0) - (keyword_bonus * 0.05)
+                
+                doc = Document(
+                    page_content=desc,
+                    metadata={
+                        "id": market.get("id") if isinstance(market, dict) else market.id,
+                        "outcomes": market.get("outcomes") if isinstance(market, dict) else market.outcomes,
+                        "outcome_prices": market.get("outcome_prices") if isinstance(market, dict) else market.outcome_prices,
+                        "question": market.get("question") if isinstance(market, dict) else market.question,
+                        "clob_token_ids": market.get("clob_token_ids") if isinstance(market, dict) else getattr(market, 'clob_token_ids', None),
+                    }
+                )
+                results.append((doc, score))
+            
+            # Sort by score (lower is better) and return top 5
+            results.sort(key=lambda x: x[1])
+            return results[:5] if results else [(Document(page_content=""), 1.0)]
         
-        # Full embedding search for production or large datasets
-        # create local json file with absolute path
+        # Full embedding search for production
         local_markets_directory = _CHROMA_BASE_DIR / "markets"
         local_markets_directory.mkdir(exist_ok=True)
         
@@ -177,15 +193,12 @@ class PolymarketRAG:
         with open(local_file_path, "w+") as output_file:
             json.dump(markets, output_file)
 
-        # create vector db
         def metadata_func(record: dict, metadata: dict) -> dict:
-
             metadata["id"] = record.get("id")
             metadata["outcomes"] = record.get("outcomes")
             metadata["outcome_prices"] = record.get("outcome_prices")
             metadata["question"] = record.get("question")
             metadata["clob_token_ids"] = record.get("clob_token_ids")
-
             return metadata
 
         loader = JSONLoader(
@@ -202,5 +215,4 @@ class PolymarketRAG:
             loaded_docs, embedding_function, persist_directory=str(vector_db_directory)
         )
 
-        # query
         return local_db.similarity_search_with_score(query=prompt)

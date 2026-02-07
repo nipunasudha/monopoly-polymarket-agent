@@ -53,6 +53,8 @@ monopoly = "scripts.python.cli:app"
 test-agents = "scripts.python.test_runner:main"
 start = "scripts.python.server:main"
 dev = "scripts.python.server:dev"
+dev-frontend = "scripts.python.frontend:start_frontend"
+dev-full = "scripts.python.frontend:start_full_stack"
 
 [dependency-groups]
 dev = [
