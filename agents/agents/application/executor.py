@@ -65,8 +65,30 @@ class Executor:
     ) -> str:
         if self.dry_run:
             import random
-            prob = random.uniform(0.3, 0.7)
-            return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability for {outcome} based on historical patterns and market analysis."
+            
+            # More realistic probability distribution (skewed towards middle, but with tails)
+            # Use beta distribution for more realistic probabilities
+            prob = random.betavariate(2, 2)  # Centered around 0.5 but with variation
+            # Sometimes add bias based on market question keywords
+            if any(word in market_question.lower() for word in ['bitcoin', 'crypto', 'bull', 'rise', 'increase']):
+                prob = min(0.95, prob + random.uniform(0.1, 0.2))
+            elif any(word in market_question.lower() for word in ['crash', 'bear', 'fall', 'decrease', 'recession']):
+                prob = max(0.05, prob - random.uniform(0.1, 0.2))
+            
+            # Add realistic confidence based on probability (higher confidence for extreme probabilities)
+            confidence = 0.5 + abs(prob - 0.5) * 0.4 + random.uniform(-0.1, 0.1)
+            confidence = max(0.3, min(0.95, confidence))
+            
+            # Generate realistic reasoning snippets
+            reasoning_templates = [
+                f"Historical data suggests {prob:.0%} likelihood. Market sentiment aligns with recent trends.",
+                f"Analysis of similar events indicates {prob:.0%} probability. Key factors include market volatility and external conditions.",
+                f"Based on current indicators, I estimate {prob:.0%} chance. The market shows moderate confidence in this outcome.",
+                f"Pattern recognition and statistical modeling point to {prob:.0%} probability. Recent developments support this assessment.",
+            ]
+            reasoning = random.choice(reasoning_templates)
+            
+            return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability (confidence: {confidence:.1%}) for {outcome}. {reasoning}"
         messages = self.prompter.superforecaster(
             description=event_title, question=market_question, outcome=outcome
         )
@@ -154,19 +176,32 @@ class Executor:
         if self.dry_run:
             # Skip expensive API calls - just create mock markets
             print("[DRY RUN] Fast mode: creating mock markets (no API calls)")
+            import random
             markets = []
-            for e in filtered_events[:2]:  # Only process first 2 for speed
+            # Process 1-3 random events for variety
+            num_events = random.randint(1, min(3, len(filtered_events)))
+            selected_events = random.sample(filtered_events, num_events) if len(filtered_events) > num_events else filtered_events
+            
+            for e in selected_events:
                 data = json.loads(e[0].json())
                 market_ids = data["metadata"]["markets"].split(",")
                 # Just use first market ID, create mock data
-                market_id = market_ids[0] if market_ids else "mock_id"
+                market_id = market_ids[0] if market_ids else f"mock_{random.randint(1000, 9999)}"
+                
+                # Generate realistic market prices (should sum to ~1.0)
+                yes_price = random.uniform(0.25, 0.75)
+                no_price = 1.0 - yes_price
+                # Add some noise to make it more realistic
+                yes_price = max(0.1, min(0.9, yes_price + random.uniform(-0.05, 0.05)))
+                no_price = 1.0 - yes_price
+                
                 mock_market = {
                     "id": market_id,
-                    "question": data["page_content"][:100],
-                    "description": data["page_content"],
+                    "question": data["page_content"][:100] if data.get("page_content") else f"Market Question {market_id}",
+                    "description": data.get("page_content", ""),
                     "outcomes": ["Yes", "No"],
-                    "outcome_prices": ["0.45", "0.55"],
-                    "clob_token_ids": ["123", "456"]
+                    "outcome_prices": [f"{yes_price:.3f}", f"{no_price:.3f}"],
+                    "clob_token_ids": [str(random.randint(100000, 999999)), str(random.randint(100000, 999999))]
                 }
                 markets.append(mock_market)
             return markets
@@ -191,34 +226,121 @@ class Executor:
     def source_best_trade(self, market_object) -> str:
         if self.dry_run:
             import random
-            # Generate fast mock trade
-            prob = random.uniform(0.3, 0.7)
-            price = random.uniform(0.3, 0.7)
-            size = random.uniform(0.05, 0.15)
-            side = random.choice(["BUY", "SELL"])
             
             market_document = market_object[0].dict()
             market = market_document["metadata"]
             question = market.get("question", "Mock Market Question")
             
-            mock_response = f"""
-            [DRY RUN] Fast mock analysis for: {question[:100]}
+            # Safely parse outcome_prices (could be list or string)
+            outcome_prices_raw = market.get("outcome_prices", ['0.5', '0.5'])
+            if isinstance(outcome_prices_raw, str):
+                outcome_prices = ast.literal_eval(outcome_prices_raw)
+            else:
+                outcome_prices = outcome_prices_raw
             
-            Analysis: Based on historical patterns and market dynamics, this represents an interesting opportunity.
+            # Safely parse outcomes (could be list or string)
+            outcomes_raw = market.get("outcomes", ['Yes', 'No'])
+            if isinstance(outcomes_raw, str):
+                outcomes = ast.literal_eval(outcomes_raw)
+            else:
+                outcomes = outcomes_raw
+            
+            # Extract current market price
+            current_price = float(outcome_prices[0]) if outcome_prices else 0.5
+            
+            # Generate realistic probability (correlated with market sentiment)
+            # Use beta distribution for more realistic probabilities
+            prob = random.betavariate(2, 2)
+            
+            # Add bias based on question keywords
+            if any(word in question.lower() for word in ['bitcoin', 'crypto', 'bull', 'rise', 'increase', 'up']):
+                prob = min(0.95, prob + random.uniform(0.15, 0.25))
+            elif any(word in question.lower() for word in ['crash', 'bear', 'fall', 'decrease', 'recession', 'down']):
+                prob = max(0.05, prob - random.uniform(0.15, 0.25))
+            
+            # Calculate edge (difference between our probability and market price)
+            edge = abs(prob - current_price)
+            
+            # Only trade if edge is significant (more realistic)
+            if edge < 0.05:  # Skip trades with small edge (30% chance)
+                if random.random() < 0.3:
+                    prob = current_price + random.choice([-1, 1]) * random.uniform(0.08, 0.15)
+                    prob = max(0.1, min(0.9, prob))
+                    edge = abs(prob - current_price)
+            
+            # Determine side based on whether we think it's undervalued or overvalued
+            if prob > current_price + 0.02:  # We think Yes is undervalued
+                side = "BUY"
+                outcome = outcomes[0] if outcomes else "Yes"
+            elif prob < current_price - 0.02:  # We think Yes is overvalued
+                side = "SELL"
+                outcome = outcomes[0] if outcomes else "Yes"
+            else:
+                # Small edge, random side
+                side = random.choice(["BUY", "SELL"])
+                outcome = outcomes[0] if outcomes else "Yes"
+            
+            # Realistic position sizing based on edge and confidence
+            # Larger positions for higher edge, but with randomness
+            base_size = 0.05 + (edge - 0.05) * 0.5  # Scale with edge
+            size = base_size + random.uniform(-0.02, 0.02)
+            size = max(0.02, min(0.20, size))  # Cap between 2% and 20%
+            
+            # Use market price as reference
+            price = current_price
+            
+            # Generate realistic analysis text
+            analysis_templates = [
+                f"Market analysis indicates {prob:.0%} probability vs current market price of {current_price:.0%}, representing a {edge:.1%} edge.",
+                f"Statistical modeling suggests {prob:.0%} likelihood. Market is pricing at {current_price:.0%}, creating opportunity.",
+                f"Based on historical patterns and current indicators, I estimate {prob:.0%} probability. Market shows {current_price:.0%}, indicating potential mispricing.",
+            ]
+            analysis = random.choice(analysis_templates)
+            
+            # Generate reasoning
+            reasoning_templates = [
+                f"Key factors include market volatility, recent trends, and comparable events. The {edge:.1%} edge suggests this is a viable opportunity.",
+                f"Analysis considers market sentiment, historical data, and current conditions. Edge of {edge:.1%} justifies position sizing.",
+                f"Evaluation based on multiple data sources indicates {prob:.0%} probability. Market pricing at {current_price:.0%} creates {edge:.1%} edge.",
+            ]
+            reasoning = random.choice(reasoning_templates)
+            
+            mock_response = f"""
+            [DRY RUN] Mock analysis for: {question[:100]}
+            
+            Analysis: {analysis}
+            
+            Reasoning: {reasoning}
             
             RESPONSE```
+            probability:{prob:.3f},
+            confidence:{0.5 + edge * 2:.2f},
+            outcome:{outcome},
             price:{price:.3f},
-            size:{size:.2f},
+            size:{size:.3f},
             side:{side},
+            edge:{edge:.3f},
             ```
             """
-            print(f"[DRY RUN] Generated mock trade instantly")
+            print(f"[DRY RUN] Generated realistic mock trade: {side} {outcome} @ {prob:.1%} (edge: {edge:.1%})")
             return mock_response
         
         market_document = market_object[0].dict()
         market = market_document["metadata"]
-        outcome_prices = ast.literal_eval(market["outcome_prices"])
-        outcomes = ast.literal_eval(market["outcomes"])
+        
+        # Safely parse outcome_prices (could be list or string)
+        outcome_prices_raw = market.get("outcome_prices", ['0.5', '0.5'])
+        if isinstance(outcome_prices_raw, str):
+            outcome_prices = ast.literal_eval(outcome_prices_raw)
+        else:
+            outcome_prices = outcome_prices_raw
+        
+        # Safely parse outcomes (could be list or string)
+        outcomes_raw = market.get("outcomes", ['Yes', 'No'])
+        if isinstance(outcomes_raw, str):
+            outcomes = ast.literal_eval(outcomes_raw)
+        else:
+            outcomes = outcomes_raw
         question = market["question"]
         description = market_document["page_content"]
 

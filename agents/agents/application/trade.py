@@ -72,15 +72,24 @@ class Trader:
             import re
             
             # Extract probability, confidence, outcome from the LLM response
+            # Handle both decimal (0.65) and percentage (65) formats
             prob_match = re.search(r'probability[:\s]+(\d+\.?\d*)', best_trade, re.IGNORECASE)
             conf_match = re.search(r'confidence[:\s]+(\d+\.?\d*)', best_trade, re.IGNORECASE)
-            outcome_match = re.search(r'outcome[:\s]+(YES|NO)', best_trade, re.IGNORECASE)
-            reasoning_match = re.search(r'reasoning[:\s]+(.+?)(?=\n\n|\noutcome|\nprobability|$)', best_trade, re.IGNORECASE | re.DOTALL)
+            outcome_match = re.search(r'outcome[:\s]+(YES|NO|Yes|No)', best_trade, re.IGNORECASE)
+            reasoning_match = re.search(r'reasoning[:\s]+(.+?)(?=\n\n|\noutcome|\nprobability|RESPONSE|$)', best_trade, re.IGNORECASE | re.DOTALL)
             
             probability = float(prob_match.group(1)) if prob_match else 0.5
+            # Normalize if it's > 1 (percentage format)
+            if probability > 1.0:
+                probability = probability / 100.0
+            
             confidence = float(conf_match.group(1)) if conf_match else 0.5
+            if confidence > 1.0:
+                confidence = confidence / 100.0
+            confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
+            
             outcome = outcome_match.group(1).upper() if outcome_match else "YES"
-            reasoning = reasoning_match.group(1).strip() if reasoning_match else best_trade[:200]
+            reasoning = reasoning_match.group(1).strip() if reasoning_match else best_trade[:500]
             
             # Save forecast to database
             forecast_data = {
@@ -96,16 +105,21 @@ class Trader:
 
             amount = self.agent.format_trade_prompt_for_execution(best_trade)
             
-            # Extract edge if available
+            # Extract side and edge from trade response
+            side_match = re.search(r'side[:\s]+(BUY|SELL)', best_trade, re.IGNORECASE)
             edge_match = re.search(r'edge[:\s]+(\d+\.?\d*)', best_trade, re.IGNORECASE)
+            
+            side = side_match.group(1).upper() if side_match else "BUY"
             edge = float(edge_match.group(1)) if edge_match else None
+            if edge and edge > 1.0:
+                edge = edge / 100.0  # Normalize if percentage
 
             # Prepare trade data
             trade_data = {
                 "market_id": str(market_id),
                 "market_question": market_question,
                 "outcome": outcome,
-                "side": "BUY",
+                "side": side,
                 "size": float(amount),
                 "forecast_probability": probability,
                 "edge": edge,
