@@ -42,6 +42,17 @@ app.add_middleware(
 db = Database()  # Default: sqlite:///monopoly_agents.db
 db.create_tables()
 
+# Run database migrations
+try:
+    from scripts.python.migrations.runner import run_migrations
+    migration_results = run_migrations(db)
+    if migration_results["applied"]:
+        logger.info(f"Applied {len(migration_results['applied'])} migrations: {', '.join(migration_results['applied'])}")
+    if migration_results["errors"]:
+        logger.error(f"Migration errors: {migration_results['errors']}")
+except Exception as e:
+    logger.error(f"Failed to run migrations: {e}")
+
 # Initialize Polymarket client
 poly = Polymarket()
 
@@ -199,6 +210,34 @@ class TrackedTradeResponse(BaseModel):
     profileImage: Optional[str]
     profileImageOptimized: Optional[str]
     transactionHash: Optional[str]
+
+
+class TrackedAddressRequest(BaseModel):
+    address: str
+    name: Optional[str] = None
+
+
+class TrackedAddressResponse(BaseModel):
+    id: int
+    address: str
+    name: Optional[str]
+    watched: bool
+    created_at: str
+
+
+class ToggleWatchedRequest(BaseModel):
+    watched: bool
+
+
+class TraderStatsResponse(BaseModel):
+    address: str
+    total_trades: int
+    total_volume: float
+    avg_trade_size: float
+    win_rate: Optional[float] = None
+    total_profit_loss: Optional[float] = None
+    first_trade: Optional[int] = None
+    last_trade: Optional[int] = None
 
 
 # Dashboard Routes (HTML)
@@ -1168,6 +1207,64 @@ def sync_markets():
 
 
 # Tracking endpoints
+@app.get("/api/tracking/addresses", response_model=List[TrackedAddressResponse])
+def get_tracked_addresses():
+    """Get all tracked addresses."""
+    try:
+        addresses = db.get_tracked_addresses()
+        # Convert to dicts to ensure proper serialization
+        result = []
+        for addr in addresses:
+            result.append(TrackedAddressResponse(**addr.to_dict()))
+        return result
+    except Exception as e:
+        logger.error(f"Failed to fetch tracked addresses: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch tracked addresses: {str(e)}"
+        )
+
+
+@app.post("/api/tracking/addresses", response_model=TrackedAddressResponse)
+def add_tracked_address(request: TrackedAddressRequest):
+    """Add a new tracked address."""
+    try:
+        tracked = db.add_tracked_address(request.address, request.name)
+        return TrackedAddressResponse(**tracked.to_dict())
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Failed to add tracked address: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add tracked address: {str(e)}"
+        )
+
+
+@app.delete("/api/tracking/addresses/{address}")
+def delete_tracked_address(address: str):
+    """Delete a tracked address."""
+    try:
+        deleted = db.delete_tracked_address(address)
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Address {address} not found"
+            )
+        return {"status": "deleted", "address": address}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete tracked address: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete tracked address: {str(e)}"
+        )
+
+
 @app.get("/api/tracking/trades", response_model=List[TrackedTradeResponse])
 def get_tracked_trades(address: str, limit: int = 50, offset: int = 0):
     """Get recent trades for a tracked wallet address from Polymarket Data API.
@@ -1211,6 +1308,78 @@ def get_tracked_trades(address: str, limit: int = 50, offset: int = 0):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch tracked trades: {str(e)}"
+        )
+
+
+@app.get("/api/tracking/stats/{address}", response_model=TraderStatsResponse)
+def get_trader_stats(address: str):
+    """Get trader statistics for a tracked address."""
+    try:
+        # Fetch trades from Polymarket API
+        data_api_url = "https://data-api.polymarket.com/trades"
+        params = {
+            "user": address,
+            "limit": 100,  # Get more trades for better stats
+            "offset": 0,
+        }
+        
+        response = httpx.get(data_api_url, params=params, timeout=10.0)
+        
+        if response.status_code != 200:
+            logger.error(f"Polymarket API error: {response.status_code} - {response.text}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Polymarket API returned error: {response.status_code}"
+            )
+        
+        trades_data = response.json()
+        
+        if not trades_data:
+            return TraderStatsResponse(
+                address=address,
+                total_trades=0,
+                total_volume=0.0,
+                avg_trade_size=0.0,
+            )
+        
+        # Calculate stats
+        total_trades = len(trades_data)
+        total_volume = sum(trade.get("size", 0) for trade in trades_data)
+        avg_trade_size = total_volume / total_trades if total_trades > 0 else 0.0
+        
+        # Get timestamps (filter out invalid/zero timestamps)
+        timestamps = [trade.get("timestamp", 0) for trade in trades_data if trade.get("timestamp") and trade.get("timestamp") > 0]
+        first_trade = min(timestamps) if timestamps and len(timestamps) > 0 else None
+        last_trade = max(timestamps) if timestamps and len(timestamps) > 0 else None
+        
+        # Only show activity period if we have multiple distinct timestamps
+        if first_trade == last_trade:
+            first_trade = None
+            last_trade = None
+        
+        # Note: Win rate and P&L calculation would require market resolution data
+        # which isn't available from the trades API alone
+        
+        return TraderStatsResponse(
+            address=address,
+            total_trades=total_trades,
+            total_volume=total_volume,
+            avg_trade_size=avg_trade_size,
+            first_trade=first_trade,
+            last_trade=last_trade,
+        )
+        
+    except httpx.TimeoutException:
+        logger.error("Timeout fetching trader stats from Polymarket API")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="Timeout fetching trader stats from Polymarket API"
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch trader stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch trader stats: {str(e)}"
         )
 
 

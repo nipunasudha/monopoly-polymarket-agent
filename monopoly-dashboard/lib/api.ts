@@ -147,6 +147,20 @@ export const debugAPI = {
 
 // Tracking API
 export const trackingAPI = {
+  getAddresses: () =>
+    fetchAPI<import('@/lib/types').TrackedAddress[]>('/api/tracking/addresses'),
+  addAddress: (address: string, name?: string) =>
+    fetchAPI<import('@/lib/types').TrackedAddress>('/api/tracking/addresses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, name }),
+    }),
+  deleteAddress: (address: string) =>
+    fetchAPI<{ status: string; address: string }>(`/api/tracking/addresses/${encodeURIComponent(address)}`, {
+      method: 'DELETE',
+    }),
   getTrades: (address: string, limit = 50, offset = 0) =>
     fetchAPI<import('@/lib/types').TrackedTrade[]>(`/api/tracking/trades?address=${encodeURIComponent(address)}&limit=${limit}&offset=${offset}`),
+  getStats: (address: string) =>
+    fetchAPI<import('@/lib/types').TraderStats>(`/api/tracking/stats/${encodeURIComponent(address)}`),
 };

@@ -125,5 +125,40 @@ def run_autonomous_trader() -> None:
     trader.one_best_trade()
 
 
+@app.command()
+def migrate(dry_run: bool = False) -> None:
+    """
+    Run database migrations.
+    
+    Args:
+        dry_run: If True, show what would be migrated without applying changes
+    """
+    from agents.connectors.database import Database
+    from scripts.python.migrations.runner import run_migrations
+    
+    db = Database()
+    db.create_tables()
+    
+    results = run_migrations(db, dry_run=dry_run)
+    
+    if results["applied"]:
+        print(f"✓ Applied {len(results['applied'])} migrations:")
+        for name in results["applied"]:
+            print(f"  - {name}")
+    
+    if results["skipped"]:
+        print(f"⊘ Skipped {len(results['skipped'])} migrations (already applied):")
+        for name in results["skipped"]:
+            print(f"  - {name}")
+    
+    if results["errors"]:
+        print(f"✗ Errors:")
+        for error in results["errors"]:
+            print(f"  - {error}")
+    
+    if not results["applied"] and not results["errors"]:
+        print("✓ No migrations to apply")
+
+
 if __name__ == "__main__":
     app()

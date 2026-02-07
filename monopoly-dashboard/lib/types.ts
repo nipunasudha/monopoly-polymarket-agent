@@ -176,3 +176,21 @@ export interface TrackedTrade {
   profileImageOptimized?: string | null;
   transactionHash?: string | null;
 }
+
+export interface TrackedAddress {
+  id: number;
+  address: string;
+  name?: string | null;
+  created_at: string;
+}
+
+export interface TraderStats {
+  address: string;
+  total_trades: number;
+  total_volume: number;
+  avg_trade_size: number;
+  win_rate?: number | null;
+  total_profit_loss?: number | null;
+  first_trade?: number | null;
+  last_trade?: number | null;
+}

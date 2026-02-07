@@ -121,6 +121,28 @@ class PortfolioSnapshot(Base):
         }
 
 
+class TrackedAddress(Base):
+    """Store tracked wallet addresses for monitoring."""
+    
+    __tablename__ = "tracked_addresses"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    address = Column(String, nullable=False, unique=True, index=True)
+    name = Column(String, nullable=True)  # Optional display name
+    watched = Column(Boolean, nullable=False, default=False)  # Whether bot should follow this address's trade patterns
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    def to_dict(self):
+        """Convert to dictionary."""
+        return {
+            "id": self.id,
+            "address": self.address,
+            "name": self.name,
+            "watched": self.watched,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class Database:
     """Database manager for agent persistence."""
     
@@ -411,6 +433,78 @@ class Database:
             if snapshot:
                 session.expunge(snapshot)
             return snapshot
+    
+    # Tracked addresses operations
+    
+    def add_tracked_address(self, address: str, name: Optional[str] = None) -> TrackedAddress:
+        """Add a tracked address.
+        
+        Args:
+            address: Wallet address to track
+            name: Optional display name
+            
+        Returns:
+            TrackedAddress: Saved tracked address
+            
+        Raises:
+            ValueError: If address already exists
+        """
+        with self.get_session() as session:
+            # Check if address already exists
+            existing = session.query(TrackedAddress).filter_by(address=address).first()
+            if existing:
+                raise ValueError(f"Address {address} is already being tracked")
+            
+            tracked = TrackedAddress(address=address, name=name)
+            session.add(tracked)
+            session.flush()
+            return tracked
+    
+    def get_tracked_addresses(self) -> List[TrackedAddress]:
+        """Get all tracked addresses.
+        
+        Returns:
+            List of TrackedAddress (detached from session)
+        """
+        with self.get_session() as session:
+            addresses = session.query(TrackedAddress).order_by(TrackedAddress.created_at.desc()).all()
+            # Detach objects from session so they can be serialized
+            for addr in addresses:
+                session.expunge(addr)
+            return addresses
+    
+    def delete_tracked_address(self, address: str) -> bool:
+        """Delete a tracked address.
+        
+        Args:
+            address: Wallet address to remove
+            
+        Returns:
+            bool: True if deleted, False if not found
+        """
+        with self.get_session() as session:
+            tracked = session.query(TrackedAddress).filter_by(address=address).first()
+            if tracked:
+                session.delete(tracked)
+                return True
+            return False
+    
+    def toggle_watched_address(self, address: str, watched: bool) -> bool:
+        """Toggle watched status for a tracked address.
+        
+        Args:
+            address: Wallet address to update
+            watched: Whether the address should be watched
+            
+        Returns:
+            bool: True if updated, False if not found
+        """
+        with self.get_session() as session:
+            tracked = session.query(TrackedAddress).filter_by(address=address).first()
+            if tracked:
+                tracked.watched = watched
+                return True
+            return False
     
     def get_portfolio_history(self, limit: int = 30) -> List[PortfolioSnapshot]:
         """Get portfolio history.
