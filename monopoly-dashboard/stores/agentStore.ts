@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import type { AgentStatus, Activity, PortfolioSnapshot } from '@/lib/types';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import type { AgentStatus, Activity, PortfolioSnapshot, RealtimeStatePatch } from '@/lib/types';
 
 interface AgentStore {
-  // State
+  // Realtime state (updated via WebSocket)
   status: AgentStatus;
   portfolio: PortfolioSnapshot | null;
   activities: Activity[];
@@ -11,16 +12,15 @@ interface AgentStore {
     stopping: boolean;
     running: boolean;
   };
-  
-  // Actions
-  setAgentStatus: (status: AgentStatus) => void;
-  setPortfolio: (portfolio: PortfolioSnapshot | null) => void;
-  addActivity: (type: 'forecast' | 'trade', data: any) => void;
+
+  /** Merge a partial update into realtime state. Add new slice keys here when you add new realtime fields. */
+  patchRealtime: (updates: RealtimeStatePatch) => void;
+  addActivity: (type: 'forecast' | 'trade', data: Activity['data']) => void;
   setLoading: (key: keyof AgentStore['loading'], value: boolean) => void;
   reset: () => void;
 }
 
-const initialState = {
+const initialRealtime = {
   status: {
     state: 'stopped' as const,
     running: false,
@@ -33,37 +33,63 @@ const initialState = {
     total_forecasts: 0,
     total_trades: 0,
   },
-  portfolio: null,
-  activities: [],
-  loading: {
-    starting: false,
-    stopping: false,
-    running: false,
-  },
+  portfolio: null as PortfolioSnapshot | null,
+  activities: [] as Activity[],
 };
 
-export const useAgentStore = create<AgentStore>((set) => ({
-  ...initialState,
-  
-  setAgentStatus: (status) => 
-    set({ status }),
-  
-  setPortfolio: (portfolio) => 
-    set({ portfolio }),
-  
-  addActivity: (type, data) => 
-    set((state) => ({
-      activities: [
-        { type, data, timestamp: new Date().toISOString() },
-        ...state.activities
-      ].slice(0, 20) // Keep only last 20 activities
-    })),
-  
-  setLoading: (key, value) => 
-    set((state) => ({
-      loading: { ...state.loading, [key]: value }
-    })),
-  
-  reset: () => 
-    set(initialState),
-}));
+export const useAgentStore = create<AgentStore>()(
+  persist(
+    (set) => ({
+      ...initialRealtime,
+      loading: {
+        starting: false,
+        stopping: false,
+        running: false,
+      },
+
+      patchRealtime: (updates) =>
+        set((state) => {
+          const next: Partial<AgentStore> = {};
+          if (updates.agent !== undefined) {
+            next.status = { ...state.status, ...updates.agent };
+          }
+          if (updates.portfolio !== undefined) {
+            next.portfolio = updates.portfolio;
+          }
+          if (updates.activities !== undefined) {
+            next.activities = updates.activities;
+          }
+          return next;
+        }),
+
+      addActivity: (type, data) =>
+        set((state) => ({
+          activities: [
+            { type, data, timestamp: new Date().toISOString() } as Activity,
+            ...state.activities,
+          ].slice(0, 20),
+        })),
+
+      setLoading: (key, value) =>
+        set((state) => ({
+          loading: { ...state.loading, [key]: value },
+        })),
+
+      reset: () =>
+        set({
+          ...initialRealtime,
+          loading: { starting: false, stopping: false, running: false },
+        }),
+    }),
+    {
+      name: 'agent-storage', // unique name for localStorage key
+      storage: createJSONStorage(() => localStorage),
+      // Only persist these fields
+      partialize: (state) => ({
+        status: state.status,
+        portfolio: state.portfolio,
+        activities: state.activities,
+      }),
+    }
+  )
+);

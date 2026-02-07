@@ -83,6 +83,20 @@ export interface Activity {
   timestamp: string;
 }
 
+/** All realtime-updated UI state. Add new fields here and in patchRealtime to support them. */
+export interface RealtimeState {
+  agent: AgentStatus;
+  portfolio: PortfolioSnapshot | null;
+  activities: Activity[];
+}
+
+/** Partial update for realtime state. Omitted keys are left unchanged. */
+export type RealtimeStatePatch = {
+  agent?: Partial<AgentStatus>;
+  portfolio?: PortfolioSnapshot | null;
+  activities?: Activity[];
+};
+
 // WebSocket message types
 export type WSMessage = 
   | { type: 'init'; data: { agent: AgentStatus; portfolio: PortfolioSnapshot | null } }

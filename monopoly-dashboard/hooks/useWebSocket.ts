@@ -19,40 +19,38 @@ export function useWebSocket() {
   const pingInterval = useRef<NodeJS.Timeout>();
   const isMounted = useRef(true);
   
-  const { setAgentStatus, setPortfolio, addActivity } = useAgentStore();
-  
-  const handleMessage = useCallback((message: WSMessage) => {
-    if (!isMounted.current) return;
-    
-    console.log('[WebSocket] Received:', message.type);
-    
-    switch (message.type) {
-      case 'init':
-        setAgentStatus(message.data.agent);
-        setPortfolio(message.data.portfolio);
-        break;
-        
-      case 'agent_status_changed':
-        setAgentStatus(message.data);
-        break;
-        
-      case 'forecast_created':
-        addActivity('forecast', message.data);
-        break;
-        
-      case 'trade_executed':
-        addActivity('trade', message.data);
-        break;
-        
-      case 'portfolio_updated':
-        setPortfolio(message.data);
-        break;
-        
-      case 'pong':
-        // Keepalive response
-        break;
-    }
-  }, [setAgentStatus, setPortfolio, addActivity]);
+  const patchRealtime = useAgentStore((s) => s.patchRealtime);
+  const addActivity = useAgentStore((s) => s.addActivity);
+
+  const handleMessage = useCallback(
+    (message: WSMessage) => {
+      if (!isMounted.current) return;
+
+      switch (message.type) {
+        case 'init':
+          patchRealtime({
+            agent: message.data.agent,
+            portfolio: message.data.portfolio,
+          });
+          break;
+        case 'agent_status_changed':
+          patchRealtime({ agent: message.data });
+          break;
+        case 'portfolio_updated':
+          patchRealtime({ portfolio: message.data });
+          break;
+        case 'forecast_created':
+          addActivity('forecast', message.data);
+          break;
+        case 'trade_executed':
+          addActivity('trade', message.data);
+          break;
+        case 'pong':
+          break;
+      }
+    },
+    [patchRealtime, addActivity]
+  );
   
   const connect = useCallback(() => {
     // Prevent duplicate connections

@@ -439,16 +439,14 @@ def health_check():
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time updates and bidirectional communication."""
-    await ws_manager.connect(websocket)
-    
-    try:
-        # Send initial state
-        portfolio = db.get_latest_portfolio_snapshot()
-        portfolio_data = portfolio.to_dict() if portfolio else {
+def _get_realtime_state():
+    """Build the full realtime state sent to clients (init and optional state_update).
+    Add new realtime fields here; then add the same keys to frontend RealtimeState and patchRealtime."""
+    portfolio = db.get_latest_portfolio_snapshot()
+    portfolio_data = (
+        portfolio.to_dict()
+        if portfolio
+        else {
             "id": 0,
             "balance": 0.0,
             "total_value": 0.0,
@@ -456,16 +454,25 @@ async def websocket_endpoint(websocket: WebSocket):
             "total_pnl": 0.0,
             "win_rate": None,
             "total_trades": 0,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
-        
-        await websocket.send_json({
-            "type": "init",
-            "data": {
-                "agent": agent_runner.get_status(),
-                "portfolio": portfolio_data
-            }
-        })
+    )
+    agent_status = agent_runner.get_status()
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    if dry_run and agent_status.get("total_forecasts", 0) == 0 and agent_status.get("total_trades", 0) == 0:
+        agent_status["total_forecasts"] = 3
+        agent_status["total_trades"] = 4
+    return {"agent": agent_status, "portfolio": portfolio_data}
+
+
+# WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time updates and bidirectional communication."""
+    await ws_manager.connect(websocket)
+
+    try:
+        await websocket.send_json({"type": "init", "data": _get_realtime_state()})
         
         # Listen for commands
         while True:
@@ -575,8 +582,52 @@ async def event_stream(request: Request):
 # Forecast endpoints
 @app.get("/api/forecasts", response_model=List[ForecastResponse])
 def get_forecasts(limit: int = 10):
-    """Get recent forecasts."""
+    """Get recent forecasts (with fixture data in dry_run mode)."""
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    
     forecasts = db.get_recent_forecasts(limit=limit)
+    
+    # If no data and in dry_run mode, return fixture data
+    if not forecasts and dry_run:
+        from datetime import timedelta
+        now = datetime.utcnow()
+        fixture_forecasts = [
+            ForecastResponse(
+                id=1,
+                market_id="mock_btc_100k",
+                market_question="Will Bitcoin reach $100,000 in 2025?",
+                outcome="YES",
+                probability=0.73,
+                confidence=0.82,
+                base_rate=0.65,
+                reasoning="Strong institutional adoption and halving cycle support bullish momentum.",
+                created_at=(now - timedelta(hours=2)).isoformat(),
+            ),
+            ForecastResponse(
+                id=2,
+                market_id="mock_trump_approval_q1",
+                market_question="Will Trump's approval rating be above 50% by end of Q1 2025?",
+                outcome="YES",
+                probability=0.62,
+                confidence=0.75,
+                base_rate=0.55,
+                reasoning="Historical honeymoon period for new administrations suggests sustained approval.",
+                created_at=(now - timedelta(hours=4)).isoformat(),
+            ),
+            ForecastResponse(
+                id=3,
+                market_id="mock_fed_rate",
+                market_question="Will the Fed cut rates below 4% in 2025?",
+                outcome="YES",
+                probability=0.58,
+                confidence=0.68,
+                base_rate=0.50,
+                reasoning="Economic indicators suggest gradual easing policy likely in late 2025.",
+                created_at=(now - timedelta(hours=6)).isoformat(),
+            ),
+        ]
+        return fixture_forecasts[:limit]
+    
     return [
         ForecastResponse(
             id=f.id,
@@ -638,8 +689,75 @@ def get_market_forecasts(market_id: str):
 # Trade endpoints
 @app.get("/api/trades", response_model=List[TradeResponse])
 def get_trades(limit: int = 10):
-    """Get recent trades."""
+    """Get recent trades (with fixture data in dry_run mode)."""
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    
     trades = db.get_recent_trades(limit=limit)
+    
+    # If no data and in dry_run mode, return fixture data
+    if not trades and dry_run:
+        from datetime import timedelta
+        now = datetime.utcnow()
+        fixture_trades = [
+            TradeResponse(
+                id=1,
+                market_id="mock_btc_100k",
+                market_question="Will Bitcoin reach $100,000 in 2025?",
+                outcome="YES",
+                side="BUY",
+                size=75.00,
+                price=0.73,
+                forecast_probability=0.73,
+                edge=0.08,
+                status="simulated",
+                created_at=(now - timedelta(hours=2)).isoformat(),
+                executed_at=(now - timedelta(hours=2, minutes=1)).isoformat(),
+            ),
+            TradeResponse(
+                id=2,
+                market_id="mock_trump_approval_q1",
+                market_question="Will Trump's approval rating be above 50% by end of Q1 2025?",
+                outcome="YES",
+                side="BUY",
+                size=120.00,
+                price=0.62,
+                forecast_probability=0.62,
+                edge=0.05,
+                status="simulated",
+                created_at=(now - timedelta(hours=4)).isoformat(),
+                executed_at=(now - timedelta(hours=4, minutes=1)).isoformat(),
+            ),
+            TradeResponse(
+                id=3,
+                market_id="mock_recession_2025",
+                market_question="Will the US enter a recession in 2025?",
+                outcome="NO",
+                side="BUY",
+                size=85.00,
+                price=0.68,
+                forecast_probability=0.68,
+                edge=0.12,
+                status="simulated",
+                created_at=(now - timedelta(hours=8)).isoformat(),
+                executed_at=(now - timedelta(hours=8, minutes=1)).isoformat(),
+            ),
+            TradeResponse(
+                id=4,
+                market_id="mock_ai_regulation",
+                market_question="Will major AI regulation pass in the US in 2025?",
+                outcome="YES",
+                side="BUY",
+                size=60.00,
+                price=0.45,
+                forecast_probability=0.45,
+                edge=0.03,
+                status="simulated",
+                created_at=(now - timedelta(hours=12)).isoformat(),
+                executed_at=(now - timedelta(hours=12, minutes=1)).isoformat(),
+            ),
+        ]
+        return fixture_trades[:limit]
+    
     return [
         TradeResponse(
             id=t.id,
@@ -778,13 +896,15 @@ def get_portfolio_history(limit: int = 30):
 # Agent control endpoints
 @app.get("/api/agent/status", response_model=AgentStatus)
 async def get_agent_status():
-    """Get agent status."""
-    # Get runner status
+    """Get agent status (with fixture counts in dry_run mode when DB is empty)."""
     runner_status = agent_runner.get_status()
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
     
-    # Get counts from database
-    forecasts = db.get_recent_forecasts(limit=1000)
-    trades = db.get_recent_trades(limit=1000)
+    total_forecasts = runner_status.get("total_forecasts", 0)
+    total_trades = runner_status.get("total_trades", 0)
+    if dry_run and total_forecasts == 0 and total_trades == 0:
+        total_forecasts = 3
+        total_trades = 4
     
     return AgentStatus(
         state=runner_status["state"],
@@ -795,8 +915,8 @@ async def get_agent_status():
         run_count=runner_status["run_count"],
         error_count=runner_status["error_count"],
         last_error=runner_status["last_error"],
-        total_forecasts=len(forecasts),
-        total_trades=len(trades),
+        total_forecasts=total_forecasts,
+        total_trades=total_trades,
     )
 
 

@@ -4,12 +4,8 @@ import { AgentStatus } from '@/components/agent/AgentStatus';
 import { AgentControls } from '@/components/agent/AgentControls';
 import { AgentStats } from '@/components/agent/AgentStats';
 import { ActivityFeed } from '@/components/ActivityFeed';
-import { useWebSocket } from '@/hooks/useWebSocket';
 
 export default function AgentPage() {
-  // Initialize WebSocket connection
-  useWebSocket();
-  
   return (
     <div className="space-y-6">
       {/* Page Header */}

@@ -52,8 +52,10 @@ class AgentRunner:
         """Get current agent status.
         
         Returns:
-            Dictionary with status information
+            Dictionary with status information including total_forecasts and total_trades.
         """
+        forecasts = self.db.get_recent_forecasts(limit=1000)
+        trades = self.db.get_recent_trades(limit=1000)
         return {
             "state": self.state.value,
             "running": self.state == AgentState.RUNNING,
@@ -63,6 +65,8 @@ class AgentRunner:
             "run_count": self.run_count,
             "error_count": self.error_count,
             "last_error": self.last_error,
+            "total_forecasts": len(forecasts),
+            "total_trades": len(trades),
         }
     
     async def run_agent_cycle(self) -> dict:
