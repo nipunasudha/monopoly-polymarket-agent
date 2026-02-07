@@ -1,4 +1,5 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
+import asyncio
 from typing import List, Optional
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, status, Request
@@ -64,16 +65,22 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run on application shutdown."""
-    logger.info("Application shutting down...")
+    logger.info("=" * 60)
+    logger.info("Application shutdown initiated")
+    logger.info("=" * 60)
     
     # Stop agent runner
     if agent_runner.state.value == "running":
+        logger.info("Stopping agent runner...")
         await agent_runner.stop()
+        logger.info("Agent runner stopped")
     
     # Close all SSE connections
+    logger.info("Closing SSE connections...")
     await broadcaster.close_all_connections()
     
-    logger.info("Agent runner stopped and connections closed")
+    logger.info("Shutdown complete")
+    logger.info("=" * 60)
 
 
 # Pydantic models for API
@@ -774,35 +781,82 @@ def main():
     """Start the FastAPI server (production mode)."""
     import uvicorn
     import signal
+    import sys
+    
+    # Custom logging filter to suppress shutdown-related errors
+    class ShutdownErrorFilter(logging.Filter):
+        def filter(self, record):
+            # Suppress CancelledError and timeout exceeded messages
+            msg = str(record.msg)
+            if "CancelledError" in msg or "timeout graceful shutdown exceeded" in msg:
+                return False
+            if "Exception in ASGI application" in msg and hasattr(record, 'exc_info') and record.exc_info:
+                exc_type = record.exc_info[0] if record.exc_info[0] else None
+                if exc_type and exc_type.__name__ == "CancelledError":
+                    return False
+            return True
+    
+    # Apply filter to uvicorn error logger
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    uvicorn_error_logger.addFilter(ShutdownErrorFilter())
     
     # Configure uvicorn with timeout settings for faster shutdown
     config = uvicorn.Config(
         app=app,
         host="0.0.0.0",
         port=8000,
-        timeout_graceful_shutdown=5,  # Wait max 5 seconds for graceful shutdown
+        timeout_graceful_shutdown=2,  # Wait max 2 seconds for graceful shutdown
+        log_level="info",
     )
     server = uvicorn.Server(config)
     
     # Handle SIGINT (Ctrl+C) to ensure clean shutdown
+    shutdown_initiated = False
     def handle_sigint(signum, frame):
-        logger.info("Received SIGINT, shutting down...")
-        server.should_exit = True
+        nonlocal shutdown_initiated
+        if not shutdown_initiated:
+            logger.info("Received SIGINT (Ctrl+C), initiating shutdown...")
+            shutdown_initiated = True
+            server.should_exit = True
+        else:
+            # Force quit on second Ctrl+C
+            logger.warning("Force quit...")
+            sys.exit(0)
     
     signal.signal(signal.SIGINT, handle_sigint)
+    
     server.run()
 
 
 def dev():
     """Start the FastAPI server with hot reload (development mode)."""
     import uvicorn
+    
+    # Custom logging filter to suppress shutdown-related errors
+    class ShutdownErrorFilter(logging.Filter):
+        def filter(self, record):
+            # Suppress CancelledError and timeout exceeded messages
+            msg = str(record.msg)
+            if "CancelledError" in msg or "timeout graceful shutdown exceeded" in msg:
+                return False
+            if "Exception in ASGI application" in msg and hasattr(record, 'exc_info') and record.exc_info:
+                exc_type = record.exc_info[0] if record.exc_info[0] else None
+                if exc_type and exc_type.__name__ == "CancelledError":
+                    return False
+            return True
+    
+    # Apply filter to uvicorn error logger
+    uvicorn_error_logger = logging.getLogger("uvicorn.error")
+    uvicorn_error_logger.addFilter(ShutdownErrorFilter())
+    
     uvicorn.run(
         "scripts.python.server:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
         reload_dirs=["agents/"],
-        timeout_graceful_shutdown=5,  # Wait max 5 seconds for graceful shutdown
+        timeout_graceful_shutdown=2,  # Wait max 2 seconds for graceful shutdown
+        log_level="info",
     )
 
 

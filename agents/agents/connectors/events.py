@@ -17,6 +17,7 @@ class EventBroadcaster:
         """Initialize the event broadcaster."""
         self._connections: Set[asyncio.Queue] = set()
         self._lock = asyncio.Lock()
+        self._shutdown = False
     
     async def connect(self) -> AsyncGenerator[str, None]:
         """Create a new SSE connection.
@@ -34,7 +35,7 @@ class EventBroadcaster:
             yield self._format_sse_message("connected", {"timestamp": datetime.utcnow().isoformat()})
             
             # Stream events from queue
-            while True:
+            while not self._shutdown:
                 try:
                     message = await asyncio.wait_for(queue.get(), timeout=30.0)
                     yield message
@@ -42,7 +43,9 @@ class EventBroadcaster:
                     # Send keepalive ping every 30 seconds
                     yield self._format_sse_message("ping", {"timestamp": datetime.utcnow().isoformat()})
         except asyncio.CancelledError:
-            logger.info("SSE connection cancelled")
+            logger.debug("SSE connection cancelled")
+        except GeneratorExit:
+            logger.debug("SSE connection closed by client")
         finally:
             async with self._lock:
                 self._connections.discard(queue)
@@ -156,10 +159,27 @@ class EventBroadcaster:
         
         Used during shutdown to ensure clean exit.
         """
+        logger.info(f"Closing {len(self._connections)} SSE connections")
+        
+        # Set shutdown flag to stop all connection loops
+        self._shutdown = True
+        
+        # Send a final message to all queues to wake them up
         async with self._lock:
-            logger.info(f"Closing {len(self._connections)} SSE connections")
-            # Clear all connections - the generators will exit on next iteration
+            for queue in self._connections:
+                try:
+                    # Put a shutdown message to wake up any waiting connections
+                    await asyncio.wait_for(
+                        queue.put(self._format_sse_message("shutdown", {"reason": "Server shutting down"})),
+                        timeout=0.1
+                    )
+                except (asyncio.TimeoutError, Exception):
+                    pass
+            
+            # Clear all connections
             self._connections.clear()
+        
+        logger.info("All SSE connections closed")
 
 
 # Global broadcaster instance
