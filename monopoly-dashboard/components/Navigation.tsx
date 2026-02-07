@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Bug } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TradingModeBadge } from '@/components/TradingModeBadge';
 import { ThemeSwitcher } from '@/components/ThemeSwitcher';
@@ -14,7 +15,7 @@ const navItems = [
   { href: '/forecasts', label: 'Forecasts' },
   { href: '/news', label: 'News' },
   { href: '/tracking', label: 'Tracking' },
-  { href: '/debug', label: 'Debug' },
+  { href: '/debug', label: 'Debug', iconOnly: true },
 ];
 
 export function Navigation() {
@@ -36,14 +37,21 @@ export function Navigation() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                    'inline-flex items-center justify-center rounded-md transition-colors',
+                    item.iconOnly ? 'px-2 py-2' : 'px-4 py-2',
+                    'text-sm font-medium',
                     'hover:bg-accent hover:text-accent-foreground',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     'disabled:pointer-events-none disabled:opacity-50',
                     isActive && 'bg-accent text-accent-foreground'
                   )}
+                  title={item.iconOnly ? item.label : undefined}
                 >
-                  {item.label}
+                  {item.iconOnly ? (
+                    <Bug className="h-4 w-4" />
+                  ) : (
+                    item.label
+                  )}
                 </Link>
               );
             })}

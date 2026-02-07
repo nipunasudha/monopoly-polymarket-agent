@@ -10,7 +10,7 @@ export function TradingModeBadge() {
   
   const tradingModeLabels = {
     dry_run: 'Dry Run',
-    live: 'Live Trading',
+    live: 'Live Mode',
   };
   
   return (

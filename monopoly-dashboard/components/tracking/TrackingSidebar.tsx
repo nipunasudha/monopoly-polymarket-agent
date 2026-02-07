@@ -6,7 +6,8 @@ import type { TrackedAddress } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TrackingSidebarProps {
@@ -21,6 +22,8 @@ export function TrackingSidebar({ selectedAddress, onSelectAddress }: TrackingSi
   const [newAddress, setNewAddress] = useState('');
   const [newName, setNewName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [watchDialogOpen, setWatchDialogOpen] = useState(false);
+  const [pendingWatchAddress, setPendingWatchAddress] = useState<{ address: string; currentWatched: boolean } | null>(null);
 
   useEffect(() => {
     loadAddresses();
@@ -84,6 +87,30 @@ export function TrackingSidebar({ selectedAddress, onSelectAddress }: TrackingSi
     }
   };
 
+  const handleToggleWatchedClick = (address: string, currentWatched: boolean, e: React.MouseEvent | React.ChangeEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setPendingWatchAddress({ address, currentWatched });
+    setWatchDialogOpen(true);
+  };
+
+  const handleConfirmWatch = async () => {
+    if (!pendingWatchAddress) return;
+    
+    const { address, currentWatched } = pendingWatchAddress;
+    const newWatched = !currentWatched;
+    
+    try {
+      await trackingAPI.toggleWatched(address, newWatched);
+      await loadAddresses();
+      setWatchDialogOpen(false);
+      setPendingWatchAddress(null);
+    } catch (err) {
+      console.error('Failed to toggle watched status:', err);
+      alert(err instanceof Error ? err.message : 'Failed to toggle watched status');
+    }
+  };
+
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
@@ -141,6 +168,50 @@ export function TrackingSidebar({ selectedAddress, onSelectAddress }: TrackingSi
         </Dialog>
       </div>
 
+      {/* Watch Confirmation Dialog */}
+      <Dialog open={watchDialogOpen} onOpenChange={setWatchDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingWatchAddress && !pendingWatchAddress.currentWatched ? 'Watch Address?' : 'Stop Watching?'}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingWatchAddress && (
+                <>
+                  {pendingWatchAddress.currentWatched ? (
+                    <>
+                      Stop watching {addresses.find(a => a.address === pendingWatchAddress.address)?.name || formatAddress(pendingWatchAddress.address)}?
+                      <br /><br />
+                      The bot will stop following this address's trade patterns.
+                    </>
+                  ) : (
+                    <>
+                      Watch {addresses.find(a => a.address === pendingWatchAddress.address)?.name || formatAddress(pendingWatchAddress.address)}?
+                      <br /><br />
+                      The bot will follow this address's trade patterns to inform your bets.
+                    </>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setWatchDialogOpen(false);
+                setPendingWatchAddress(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmWatch}>
+              {pendingWatchAddress && pendingWatchAddress.currentWatched ? 'Stop Watching' : 'Watch'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground">Loading...</div>
@@ -149,18 +220,18 @@ export function TrackingSidebar({ selectedAddress, onSelectAddress }: TrackingSi
             No tracked addresses. Add one to get started.
           </div>
         ) : (
-          <div className="p-2">
+          <div className="p-1">
             {addresses.map((addr) => (
-              <button
+              <div
                 key={addr.id}
-                onClick={() => onSelectAddress(addr.address)}
                 className={cn(
-                  "w-full text-left p-3 rounded-md mb-1 transition-colors relative group",
-                  "hover:bg-accent",
+                  "w-full rounded-md transition-colors relative group cursor-pointer",
+                  "hover:bg-accent/50",
                   selectedAddress === addr.address && "bg-accent"
                 )}
+                onClick={() => onSelectAddress(addr.address)}
               >
-                <div className="flex items-center justify-between">
+                <div className="p-2 flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     {addr.name ? (
                       <>
@@ -173,15 +244,45 @@ export function TrackingSidebar({ selectedAddress, onSelectAddress }: TrackingSi
                       <div className="text-sm font-mono truncate">{formatAddress(addr.address)}</div>
                     )}
                   </div>
-                  <button
-                    onClick={(e) => handleDelete(addr.address, e)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
-                    title="Remove"
-                  >
-                    <Trash2 className="h-3 w-3 text-destructive" />
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {addr.watched ? (
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleWatchedClick(addr.address, addr.watched, e);
+                      }}
+                      className="cursor-pointer"
+                    >
+                      <Switch
+                        checked={addr.watched}
+                        onCheckedChange={(checked) => {
+                          // Prevent default toggle - handled by dialog
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        className="flex-shrink-0 pointer-events-none"
+                        title={addr.watched ? 'Stop watching' : 'Watch'}
+                      />
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(addr.address, e);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-destructive/10 rounded"
+                      title="Remove"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </button>
+                  </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

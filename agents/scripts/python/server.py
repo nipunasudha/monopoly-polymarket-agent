@@ -1265,6 +1265,27 @@ def delete_tracked_address(address: str):
         )
 
 
+@app.patch("/api/tracking/addresses/{address}/watched")
+def toggle_watched_address(address: str, request: ToggleWatchedRequest):
+    """Toggle watched status for a tracked address."""
+    try:
+        updated = db.toggle_watched_address(address, request.watched)
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Address {address} not found"
+            )
+        return {"status": "updated", "address": address, "watched": request.watched}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to toggle watched status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to toggle watched status: {str(e)}"
+        )
+
+
 @app.get("/api/tracking/trades", response_model=List[TrackedTradeResponse])
 def get_tracked_trades(address: str, limit: int = 50, offset: int = 0):
     """Get recent trades for a tracked wallet address from Polymarket Data API.

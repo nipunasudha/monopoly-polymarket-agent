@@ -181,6 +181,7 @@ export interface TrackedAddress {
   id: number;
   address: string;
   name?: string | null;
+  watched: boolean;
   created_at: string;
 }
 
