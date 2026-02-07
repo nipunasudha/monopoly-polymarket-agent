@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useAgentStore } from '@/stores/agentStore';
 import type { WSMessage, WSCommand } from '@/lib/types';
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080/ws';
 const RECONNECT_DELAY = 2000;
 const PING_INTERVAL = 30000;
 
@@ -149,7 +149,7 @@ export function useWebSocket() {
           console.log(`[WebSocket] Connection closed cleanly (code: ${event.code})`);
         } else {
           console.warn(`[WebSocket] Connection lost (code: ${event.code}, reason: ${event.reason || 'unknown'})`);
-          console.warn('[WebSocket] Make sure backend is running on port 8000');
+          console.warn('[WebSocket] Make sure backend is running on port 8080');
           setError('WebSocket connection lost. Retrying...');
         }
         

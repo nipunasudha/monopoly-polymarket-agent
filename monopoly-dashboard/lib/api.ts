@@ -2,7 +2,7 @@
  * API client for FastAPI backend
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 class APIError extends Error {
   constructor(public status: number, message: string) {

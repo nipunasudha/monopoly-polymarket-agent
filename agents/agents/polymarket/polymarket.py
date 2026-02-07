@@ -14,6 +14,7 @@ from web3.constants import MAX_INT
 from web3.middleware import geth_poa_middleware
 
 import httpx
+import logging
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import ApiCreds
 from py_clob_client.constants import AMOY, POLYGON
@@ -31,6 +32,13 @@ from py_clob_client.order_builder.constants import BUY
 from agents.utils.objects import SimpleMarket, SimpleEvent
 
 load_dotenv()
+
+# Configure httpx logging to suppress expected 400 errors during API key creation
+# The create_or_derive_api_creds() method tries to create a key first, which may fail
+# with 400 if credentials already exist - this is expected and handled gracefully
+httpx_logger = logging.getLogger("httpx")
+# Only show WARNING and above for httpx to suppress INFO level 400 responses
+httpx_logger.setLevel(logging.WARNING)
 
 
 class Polymarket:
@@ -77,12 +85,20 @@ class Polymarket:
         self._init_approvals(False)
 
     def _init_api_keys(self) -> None:
+        """Initialize CLOB API credentials.
+        
+        Attempts to create new API credentials, and if they already exist (400 error),
+        derives existing credentials instead. This is the expected flow.
+        """
         self.client = ClobClient(
             self.clob_url, key=self.private_key, chain_id=self.chain_id
         )
+        # create_or_derive_api_creds() tries create_api_key() first (may return 400),
+        # then falls back to derive_api_key() if creation fails - this is expected behavior
         self.credentials = self.client.create_or_derive_api_creds()
+        if self.credentials is None:
+            raise RuntimeError("Failed to create or derive API credentials for Polymarket CLOB")
         self.client.set_api_creds(self.credentials)
-        # print(self.credentials)
 
     def _init_approvals(self, run: bool = False) -> None:
         if not run:

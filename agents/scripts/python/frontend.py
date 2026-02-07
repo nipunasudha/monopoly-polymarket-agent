@@ -68,7 +68,7 @@ def start_full_stack():
     
     try:
         # Start backend (using the dev server)
-        print("🔧 Starting backend on port 8000...")
+        print("🔧 Starting backend on port 8080...")
         from scripts.python.server import dev
         backend_proc = subprocess.Popen(
             [sys.executable, "-c", "from scripts.python.server import dev; dev()"],
@@ -93,8 +93,8 @@ def start_full_stack():
         print("✅ Full stack is running!")
         print("")
         print("📊 Dashboard:  http://localhost:3000")
-        print("🔌 API:        http://localhost:8000/api")
-        print("🌐 WebSocket:  ws://localhost:8000/ws")
+        print("🔌 API:        http://localhost:8080/api")
+        print("🌐 WebSocket:  ws://localhost:8080/ws")
         print("")
         print("Press Ctrl+C to stop all services")
         print("=" * 50)
