@@ -67,6 +67,14 @@ export interface Market {
   outcomes: string[];
   outcome_prices: string[];
   description?: string;
+  volume?: number;
+  liquidity?: number;
+}
+
+export interface MarketsResponse {
+  markets: Market[];
+  dry_run: boolean;
+  error?: string;
 }
 
 export interface Activity {

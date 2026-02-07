@@ -1,5 +1,6 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
 import asyncio
+import os
 from typing import List, Optional
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, status, Request, WebSocket, WebSocketDisconnect
@@ -259,6 +260,127 @@ async def dashboard_markets(request: Request):
         "request": request,
         "markets": markets_data,
     })
+
+
+@app.get("/api/markets")
+async def get_markets():
+    """Get available markets (with fixture data in dry_run mode)."""
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    
+    if dry_run:
+        # Return fixture data instantly
+        fixture_markets = [
+            {
+                "id": "21742633621281841065619472033692432265820606149693301024636724346570693356136",
+                "question": "Will Elon and DOGE cut between $200-250b in federal spending in 2025?",
+                "end": "2026-01-01T00:00:00Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.007", "0.993"],
+                "description": "This market will resolve to 'Yes' if verified government reports show spending cuts between $200-250 billion in 2025.",
+                "volume": 1250000.0,
+                "liquidity": 85000.0,
+            },
+            {
+                "id": "mock_trump_approval_q1",
+                "question": "Will Trump's approval rating be above 50% by end of Q1 2025?",
+                "end": "2025-03-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.62", "0.38"],
+                "description": "Resolves based on RealClearPolitics average on March 31, 2025.",
+                "volume": 850000.0,
+                "liquidity": 42000.0,
+            },
+            {
+                "id": "mock_btc_100k",
+                "question": "Will Bitcoin reach $100,000 in 2025?",
+                "end": "2025-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.73", "0.27"],
+                "description": "This market resolves to 'Yes' if Bitcoin trades at or above $100,000 at any point in 2025.",
+                "volume": 3200000.0,
+                "liquidity": 150000.0,
+            },
+            {
+                "id": "mock_ai_agi",
+                "question": "Will AGI be achieved by end of 2026?",
+                "end": "2026-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.15", "0.85"],
+                "description": "Resolves based on consensus of AI researchers and demonstration of general intelligence.",
+                "volume": 620000.0,
+                "liquidity": 28000.0,
+            },
+            {
+                "id": "mock_fed_rate",
+                "question": "Will the Fed cut rates below 4% in 2025?",
+                "end": "2025-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.58", "0.42"],
+                "description": "Resolves to 'Yes' if the Federal Reserve's target rate goes below 4.00%.",
+                "volume": 980000.0,
+                "liquidity": 55000.0,
+            },
+            {
+                "id": "mock_spacex_starship",
+                "question": "Will SpaceX land Starship on Mars in 2026?",
+                "end": "2026-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.08", "0.92"],
+                "description": "Resolves to 'Yes' if SpaceX successfully lands a Starship on Mars.",
+                "volume": 450000.0,
+                "liquidity": 22000.0,
+            },
+            {
+                "id": "mock_recession_2025",
+                "question": "Will the US enter a recession in 2025?",
+                "end": "2025-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.32", "0.68"],
+                "description": "Resolves based on NBER official recession dating.",
+                "volume": 1100000.0,
+                "liquidity": 68000.0,
+            },
+            {
+                "id": "mock_ai_regulation",
+                "question": "Will major AI regulation pass in the US in 2025?",
+                "end": "2025-12-31T23:59:59Z",
+                "active": True,
+                "outcomes": ["Yes", "No"],
+                "outcome_prices": ["0.45", "0.55"],
+                "description": "Resolves to 'Yes' if comprehensive AI regulation is signed into law.",
+                "volume": 380000.0,
+                "liquidity": 19000.0,
+            },
+        ]
+        return {"markets": fixture_markets, "dry_run": True}
+    
+    # Live mode - fetch real markets
+    try:
+        markets = poly.get_all_markets()
+        markets_data = []
+        for market in markets[:20]:
+            markets_data.append({
+                "id": market.id,
+                "question": market.question,
+                "end": market.end,
+                "active": market.active,
+                "outcomes": market.outcomes,
+                "outcome_prices": market.outcome_prices,
+                "description": getattr(market, 'description', ''),
+                "volume": getattr(market, 'volume', 0.0),
+                "liquidity": getattr(market, 'liquidity', 0.0),
+            })
+        return {"markets": markets_data, "dry_run": False}
+    except Exception as e:
+        logger.error(f"Could not fetch markets: {e}")
+        return {"markets": [], "dry_run": False, "error": str(e)}
 
 
 @app.get("/trades", response_class=HTMLResponse)

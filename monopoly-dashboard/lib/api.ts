@@ -105,6 +105,12 @@ export const marketAPI = {
     fetchAPI('/api/sync/markets', { method: 'POST' }),
 };
 
+// Markets API
+export const marketsAPI = {
+  getAll: () =>
+    fetchAPI<import('@/lib/types').MarketsResponse>('/api/markets'),
+};
+
 // Health check
 export const healthAPI = {
   check: () => 
