@@ -184,8 +184,8 @@ export default function MarketsPage() {
                       {market.question}
                     </h3>
                     <div className="mt-2 flex items-center flex-wrap gap-3 text-sm text-gray-500">
-                      <span className="truncate max-w-xs" title={market.id}>
-                        ID: #{market.id.slice(0, 8)}...
+                      <span className="truncate max-w-xs" title={String(market.id)}>
+                        ID: #{String(market.id).slice(0, 8)}...
                       </span>
                       <span>•</span>
                       <span>Ends: {formatDate(market.end)}</span>
@@ -213,7 +213,7 @@ export default function MarketsPage() {
                 )}
 
                 {/* Outcomes */}
-                {market.outcomes && market.outcome_prices && (
+                {market.outcomes && market.outcome_prices && Array.isArray(market.outcomes) && Array.isArray(market.outcome_prices) && (
                   <div className="mt-4 border-t border-gray-200 pt-4">
                     <div className="grid grid-cols-2 gap-4">
                       {market.outcomes.map((outcome, idx) => {

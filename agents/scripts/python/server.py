@@ -164,6 +164,7 @@ class AgentStatus(BaseModel):
     last_error: Optional[str]
     total_forecasts: int
     total_trades: int
+    trading_mode: str  # "dry_run" or "live"
 
 
 class AgentRunResult(BaseModel):
@@ -283,13 +284,32 @@ async def get_markets():
         markets = poly.get_all_markets()
         markets_data = []
         for market in markets[:20]:
+            # Parse outcomes and outcome_prices from strings to arrays
+            outcomes = market.outcomes
+            outcome_prices = market.outcome_prices
+            
+            # Try to parse as JSON first, then as comma-separated
+            if isinstance(outcomes, str):
+                try:
+                    outcomes = json.loads(outcomes)
+                except (json.JSONDecodeError, ValueError):
+                    # Fallback to comma-separated string
+                    outcomes = [o.strip() for o in outcomes.split(',')] if outcomes else []
+            
+            if isinstance(outcome_prices, str):
+                try:
+                    outcome_prices = json.loads(outcome_prices)
+                except (json.JSONDecodeError, ValueError):
+                    # Fallback to comma-separated string
+                    outcome_prices = [p.strip() for p in outcome_prices.split(',')] if outcome_prices else []
+            
             markets_data.append({
-                "id": market.id,
+                "id": str(market.id),
                 "question": market.question,
                 "end": market.end,
                 "active": market.active,
-                "outcomes": market.outcomes,
-                "outcome_prices": market.outcome_prices,
+                "outcomes": outcomes if isinstance(outcomes, list) else [],
+                "outcome_prices": outcome_prices if isinstance(outcome_prices, list) else [],
                 "description": getattr(market, 'description', ''),
                 "volume": getattr(market, 'volume', 0.0),
                 "liquidity": getattr(market, 'liquidity', 0.0),
@@ -336,9 +356,11 @@ def _get_realtime_state():
     )
     agent_status = agent_runner.get_status()
     dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    trading_mode = "dry_run" if dry_run else "live"
     if dry_run and agent_status.get("total_forecasts", 0) == 0 and agent_status.get("total_trades", 0) == 0:
         agent_status["total_forecasts"] = 3
         agent_status["total_trades"] = 4
+    agent_status["trading_mode"] = trading_mode
     return {"agent": agent_status, "portfolio": portfolio_data}
 
 
@@ -742,6 +764,7 @@ async def get_agent_status():
     """Get agent status (with fixture counts in dry_run mode when DB is empty)."""
     runner_status = agent_runner.get_status()
     dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    trading_mode = "dry_run" if dry_run else "live"
     
     total_forecasts = runner_status.get("total_forecasts", 0)
     total_trades = runner_status.get("total_trades", 0)
@@ -760,6 +783,7 @@ async def get_agent_status():
         last_error=runner_status["last_error"],
         total_forecasts=total_forecasts,
         total_trades=total_trades,
+        trading_mode=trading_mode,
     )
 
 

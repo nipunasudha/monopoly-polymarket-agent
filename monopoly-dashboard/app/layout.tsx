@@ -4,6 +4,7 @@ import "./globals.css";
 import Link from "next/link";
 import { WebSocketProvider } from "@/providers/WebSocketProvider";
 import { Toaster } from "sonner";
+import { TradingModeBadge } from "@/components/TradingModeBadge";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -75,6 +76,9 @@ export default function RootLayout({
                         Debug
                       </Link>
                     </div>
+                  </div>
+                  <div className="flex items-center">
+                    <TradingModeBadge />
                   </div>
                 </div>
               </div>

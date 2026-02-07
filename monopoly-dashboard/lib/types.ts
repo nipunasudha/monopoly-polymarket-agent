@@ -13,6 +13,7 @@ export interface AgentStatus {
   last_error: string | null;
   total_forecasts?: number;
   total_trades?: number;
+  trading_mode?: 'dry_run' | 'live';
 }
 
 export interface Forecast {
