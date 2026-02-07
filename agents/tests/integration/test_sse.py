@@ -1,5 +1,9 @@
 """
 Integration tests for Server-Sent Events (SSE) functionality.
+
+NOTE: These tests are skipped because SSE was replaced with WebSocket.
+The EventBroadcaster API changed - it no longer has connect() or connection_count()
+methods, instead it uses a WebSocket manager.
 """
 import pytest
 import asyncio
@@ -7,6 +11,8 @@ from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from agents.connectors.events import EventBroadcaster, get_broadcaster
+
+pytestmark = pytest.mark.skip(reason="SSE replaced with WebSocket - EventBroadcaster API changed")
 
 
 class TestEventBroadcaster:

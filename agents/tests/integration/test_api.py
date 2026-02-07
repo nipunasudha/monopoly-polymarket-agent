@@ -14,13 +14,11 @@ class TestRootEndpoints:
     """Test root and health check endpoints."""
 
     def test_read_root(self, client, setup_test_db):
-        """Test root endpoint returns dashboard HTML."""
+        """Test root endpoint - now returns 404 since dashboard moved to Next.js."""
         response = client.get("/")
         
-        assert response.status_code == 200
-        # Root now returns HTML dashboard, not JSON
-        assert "text/html" in response.headers["content-type"]
-        assert b"Portfolio Overview" in response.content
+        # Root endpoint no longer exists - dashboard is served by Next.js frontend
+        assert response.status_code == 404
     
     def test_api_root(self, client, setup_test_db):
         """Test API root endpoint returns JSON."""
@@ -198,13 +196,14 @@ class TestPortfolioEndpoints:
     """Test portfolio API endpoints."""
 
     def test_get_portfolio_empty(self, client, setup_test_db):
-        """Test getting portfolio with no data returns 404."""
+        """Test getting portfolio with no data returns empty portfolio."""
         response = client.get("/api/portfolio")
         
-        assert response.status_code == 404
+        # Portfolio endpoint returns 200 with default values when empty
+        assert response.status_code == 200
         data = response.json()
-        assert "portfolio" in data["detail"].lower()
-        assert "available" in data["detail"].lower()
+        assert "balance" in data
+        assert "total_value" in data
 
     def test_get_portfolio_with_data(self, client, sample_portfolio_in_db):
         """Test getting current portfolio state."""

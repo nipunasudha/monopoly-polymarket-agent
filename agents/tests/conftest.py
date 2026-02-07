@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures for the test suite.
 """
+import os
 import pytest
 import json
 from typing import Dict, Any
@@ -8,6 +9,9 @@ from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 from scripts.python.server import app, db
 from agents.application.runner import get_agent_runner, AgentState
+
+# Disable web3 plugin autoloading to avoid import errors
+os.environ["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
 
 
 @pytest.fixture

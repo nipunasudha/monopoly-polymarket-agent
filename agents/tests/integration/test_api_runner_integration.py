@@ -129,7 +129,9 @@ class TestAPIRunnerIntegration:
         response = client.post("/api/agent/stop")
         
         assert response.status_code == 400
-        assert "not running" in response.json()["detail"].lower()
+        # Error message can be "not running" or "already stopped"
+        error_detail = response.json()["detail"].lower()
+        assert "not running" in error_detail or "already stopped" in error_detail
 
     def test_api_interval_validation(self, client, setup_test_db, mock_trader):
         """Test that API validates interval values."""

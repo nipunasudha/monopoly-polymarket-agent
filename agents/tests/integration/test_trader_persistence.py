@@ -16,9 +16,24 @@ class TestTraderPersistence:
         """Get database instance."""
         return Database()
     
+    @pytest.fixture(autouse=True)
+    def setup_db(self, db):
+        """Setup database tables for each test."""
+        # Ensure tables exist
+        db.create_tables()
+        yield
+        # Cleanup
+        db.drop_tables()
+    
     @pytest.fixture
     def mock_trader_dependencies(self):
         """Mock external dependencies to avoid real API calls."""
+        import os
+        # Ensure dry_run mode for tests
+        original_mode = os.environ.get("TRADING_MODE")
+        if "TRADING_MODE" in os.environ:
+            del os.environ["TRADING_MODE"]
+        
         with patch('agents.application.trade.Polymarket') as mock_poly, \
              patch('agents.application.trade.Agent') as mock_agent, \
              patch('agents.application.trade.Gamma'):
@@ -65,14 +80,20 @@ side: BUY
             
             mock_agent_instance.format_trade_prompt_for_execution.return_value = 0.15
             
-            yield mock_poly, mock_agent
+            try:
+                yield mock_poly, mock_agent
+            finally:
+                # Restore original TRADING_MODE
+                if original_mode:
+                    os.environ["TRADING_MODE"] = original_mode
     
-    def test_trader_saves_forecast(self, db, mock_trader_dependencies):
+    def test_trader_saves_forecast(self, db, setup_db, mock_trader_dependencies):
         """Test that Trader saves forecast to database."""
         # Clear database
         with db.get_session() as session:
             session.execute(text("DELETE FROM forecasts"))
             session.execute(text("DELETE FROM trades"))
+            session.commit()
         
         # Run trader
         trader = Trader()
@@ -90,12 +111,13 @@ side: BUY
         assert forecast.confidence == 0.85
         assert "Bitcoin" in forecast.reasoning or "fundamentals" in forecast.reasoning.lower()
     
-    def test_trader_saves_trade(self, db, mock_trader_dependencies):
+    def test_trader_saves_trade(self, db, setup_db, mock_trader_dependencies):
         """Test that Trader saves trade to database."""
         # Clear database
         with db.get_session() as session:
             session.execute(text("DELETE FROM forecasts"))
             session.execute(text("DELETE FROM trades"))
+            session.commit()
         
         # Run trader
         trader = Trader()
@@ -113,12 +135,13 @@ side: BUY
         assert trade.size == 0.15
         assert trade.status == "simulated"  # dry_run mode
     
-    def test_trader_creates_both_forecast_and_trade(self, db, mock_trader_dependencies):
+    def test_trader_creates_both_forecast_and_trade(self, db, setup_db, mock_trader_dependencies):
         """Test that Trader creates both forecast and trade in one run."""
         # Clear database
         with db.get_session() as session:
             session.execute(text("DELETE FROM forecasts"))
             session.execute(text("DELETE FROM trades"))
+            session.commit()
         
         # Run trader
         trader = Trader()

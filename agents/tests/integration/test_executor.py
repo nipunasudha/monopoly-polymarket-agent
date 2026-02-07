@@ -242,7 +242,7 @@ class TestExecutorSourceBestTrade:
         executor = Executor()
         executor.llm = mock_llm
 
-        # Create mock market object
+        # Create mock market object - source_best_trade expects a tuple (document, score)
         from langchain_core.documents import Document
 
         market_doc = Document(
@@ -254,7 +254,7 @@ class TestExecutorSourceBestTrade:
             },
         )
 
-        result = executor.source_best_trade([market_doc])
+        result = executor.source_best_trade((market_doc, 0.95))
 
         assert isinstance(result, str)
         assert mock_llm.invoke.call_count == 2

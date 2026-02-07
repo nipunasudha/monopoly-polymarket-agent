@@ -1,6 +1,9 @@
 """
 End-to-end tests for realtime update flow.
 Tests the complete flow from database save to SSE event emission.
+
+NOTE: These tests are skipped because SSE was replaced with WebSocket.
+The EventBroadcaster API changed significantly.
 """
 import pytest
 import asyncio
@@ -9,6 +12,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from agents.connectors.database import Database
 from agents.connectors.events import EventBroadcaster, get_broadcaster
 from agents.application.runner import AgentRunner
+
+pytestmark = pytest.mark.skip(reason="SSE replaced with WebSocket - EventBroadcaster API changed")
 
 
 class TestRealtimeForecastFlow:

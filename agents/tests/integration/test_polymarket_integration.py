@@ -12,9 +12,18 @@ class TestPolymarketIntegration:
     
     def test_polymarket_initialization(self):
         """Test Polymarket client can be initialized."""
-        poly = Polymarket()
-        assert poly is not None
-        assert poly.dry_run is True  # Should be in dry_run mode by default
+        import os
+        # Ensure dry_run mode (default if TRADING_MODE not set)
+        original_mode = os.environ.get("TRADING_MODE")
+        if "TRADING_MODE" in os.environ:
+            del os.environ["TRADING_MODE"]
+        try:
+            poly = Polymarket()
+            assert poly is not None
+            assert poly.dry_run is True  # Should be in dry_run mode by default
+        finally:
+            if original_mode:
+                os.environ["TRADING_MODE"] = original_mode
     
     def test_fetch_all_markets(self):
         """Test fetching markets from Polymarket API."""
@@ -90,14 +99,24 @@ class TestPolymarketIntegration:
     
     def test_get_usdc_balance_dry_run(self):
         """Test getting USDC balance in dry_run mode."""
-        poly = Polymarket()
-        balance = poly.get_usdc_balance()
-        
-        assert balance is not None
-        assert isinstance(balance, (int, float))
-        assert balance > 0  # Should return simulated balance
-        
-        print(f"✅ USDC Balance (simulated): ${balance:.2f}")
+        import os
+        # Ensure dry_run mode
+        original_mode = os.environ.get("TRADING_MODE")
+        if "TRADING_MODE" in os.environ:
+            del os.environ["TRADING_MODE"]
+        try:
+            poly = Polymarket()
+            assert poly.dry_run is True, "Should be in dry_run mode"
+            balance = poly.get_usdc_balance()
+            
+            assert balance is not None
+            assert isinstance(balance, (int, float))
+            assert balance > 0  # Should return simulated balance
+            
+            print(f"✅ USDC Balance (simulated): ${balance:.2f}")
+        finally:
+            if original_mode:
+                os.environ["TRADING_MODE"] = original_mode
     
     def test_orderbook_price(self):
         """Test fetching orderbook price for a market."""
@@ -262,11 +281,11 @@ class TestPolymarketEndToEnd:
         assert our_forecast["market_question"] == market.question
         print(f"✅ Step 3: Retrieved via API")
         
-        # 4. Check dashboard page
+        # 4. Check dashboard page (now served by Next.js, so 404 is expected)
         response = client.get("/forecasts")
-        assert response.status_code == 200
-        assert market.question in response.text
-        print(f"✅ Step 4: Visible in dashboard UI")
+        # Dashboard is now served by Next.js frontend, so backend returns 404
+        assert response.status_code == 404
+        print(f"✅ Step 4: Dashboard moved to Next.js frontend (404 expected)")
         
         print(f"\n🎉 Full pipeline test passed!")
         print(f"   Market: {market.question[:70]}...")

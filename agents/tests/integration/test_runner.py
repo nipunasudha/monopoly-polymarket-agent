@@ -49,7 +49,7 @@ class TestAgentRunnerInitialization:
 class TestAgentRunnerStatus:
     """Test agent runner status reporting."""
 
-    def test_get_status_returns_dict(self, test_runner):
+    def test_get_status_returns_dict(self, test_runner, setup_test_db):
         """Test that get_status returns dictionary."""
         status = test_runner.get_status()
         
@@ -62,7 +62,7 @@ class TestAgentRunnerStatus:
         assert "run_count" in status
         assert "error_count" in status
 
-    def test_initial_status(self, test_runner):
+    def test_initial_status(self, test_runner, setup_test_db):
         """Test initial status values."""
         status = test_runner.get_status()
         
@@ -211,7 +211,7 @@ class TestAgentRunnerConfiguration:
         
         assert test_runner.interval_minutes == 120
 
-    def test_set_interval_updates_status(self, test_runner):
+    def test_set_interval_updates_status(self, test_runner, setup_test_db):
         """Test that interval update reflects in status."""
         test_runner.set_interval(45)
         
