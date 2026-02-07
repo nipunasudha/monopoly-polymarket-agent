@@ -5,7 +5,7 @@ Integrates with FastAPI's async event loop.
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Callable
+from typing import Optional, Any, Callable
 from enum import Enum
 
 from agents.application.trade import Trader
