@@ -179,40 +179,21 @@ class TestHubStatusAPIs:
     """Test hub status API logic (without FastAPI server)."""
     
     @pytest.mark.asyncio
-    async def test_get_hub_status_new_architecture(self):
-        """Test getting hub status in new architecture mode."""
+    async def test_get_hub_status_with_openclaw(self):
+        """Test getting hub status with OpenClaw architecture."""
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test_key"}):
             from agents.application.runner import AgentRunner
             
-            # Create runner with new architecture
-            with patch.dict("os.environ", {"USE_NEW_ARCHITECTURE": "true"}):
-                runner = AgentRunner()
-                
-                status = runner.get_status()
-                
-                assert status["architecture"] == "new"
-                assert "hub_status" in status
-                assert isinstance(status["hub_status"], dict)
-    
-    @pytest.mark.asyncio
-    async def test_get_hub_status_legacy_architecture(self):
-        """Test getting hub status in legacy architecture mode."""
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test_key"}):
-            from agents.application.runner import AgentRunner
+            runner = AgentRunner()
+            status = runner.get_status()
             
-            # Create runner with legacy architecture
-            with patch.dict("os.environ", {"USE_NEW_ARCHITECTURE": "false"}):
-                runner = AgentRunner()
-                
-                status = runner.get_status()
-                
-                assert status["architecture"] == "legacy"
-                assert "hub_status" not in status
+            assert "hub_status" in status
+            assert isinstance(status["hub_status"], dict)
     
     @pytest.mark.asyncio
     async def test_hub_status_includes_lane_info(self):
         """Test that hub status includes lane information."""
-        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test_key", "USE_NEW_ARCHITECTURE": "true"}):
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test_key"}):
             from agents.application.runner import AgentRunner
             
             runner = AgentRunner()

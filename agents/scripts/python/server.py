@@ -126,14 +126,13 @@ class ConnectionManager:
                 
                 # Get runner status
                 runner_status = agent_runner.get_status()
+                hub_status = runner_status.get("hub_status", {})
                 
-                if runner_status.get("architecture") == "new":
-                    hub_status = runner_status.get("hub_status", {})
-                    await self.broadcast({
-                        "type": "hub_status_update",
-                        "data": hub_status,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                await self.broadcast({
+                    "type": "hub_status_update",
+                    "data": hub_status,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
             except Exception as e:
                 logger.error(f"Error in hub status broadcast: {e}")
                 await asyncio.sleep(2)
@@ -738,19 +737,12 @@ async def websocket_endpoint(websocket: WebSocket):
             elif action == "get_hub_status":
                 # Phase 8: Real-time hub status via WebSocket
                 runner_status = agent_runner.get_status()
-                if runner_status.get("architecture") == "new":
-                    hub_status = runner_status.get("hub_status", {})
-                    await websocket.send_json({
-                        "type": "hub_status",
-                        "data": hub_status,
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
-                else:
-                    await websocket.send_json({
-                        "type": "hub_status",
-                        "data": {"status": "not_available", "architecture": "legacy"},
-                        "timestamp": datetime.utcnow().isoformat()
-                    })
+                hub_status = runner_status.get("hub_status", {})
+                await websocket.send_json({
+                    "type": "hub_status",
+                    "data": hub_status,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
             
             elif action == "subscribe_hub":
                 # Phase 8: Subscribe to hub status updates (every 2 seconds)
@@ -1295,21 +1287,13 @@ async def get_approval_stats():
 
 @app.get("/api/hub/status")
 async def get_hub_status():
-    """Get TradingHub status (only available in new architecture)."""
+    """Get TradingHub status."""
     try:
         runner_status = agent_runner.get_status()
-        
-        if runner_status.get("architecture") != "new":
-            return {
-                "status": "not_available",
-                "message": "Hub status only available in new architecture. Set USE_NEW_ARCHITECTURE=true",
-                "architecture": "legacy"
-            }
-        
         hub_status = runner_status.get("hub_status", {})
+        
         return {
             "status": "available",
-            "architecture": "new",
             "hub": hub_status
         }
     except Exception as e:
@@ -1325,20 +1309,11 @@ async def get_hub_stats():
     """Get detailed TradingHub statistics."""
     try:
         runner_status = agent_runner.get_status()
-        
-        if runner_status.get("architecture") != "new":
-            return {
-                "status": "not_available",
-                "message": "Hub stats only available in new architecture",
-                "architecture": "legacy"
-            }
-        
         hub_status = runner_status.get("hub_status", {})
         stats = hub_status.get("stats", {})
         
         return {
             "status": "available",
-            "architecture": "new",
             "stats": stats,
             "sessions": hub_status.get("sessions", 0),
             "queued_tasks": hub_status.get("queued_tasks", 0),

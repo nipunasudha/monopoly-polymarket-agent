@@ -45,18 +45,11 @@ class AgentRunner:
         self.trader = Trader(approval_manager=approval_manager)
         self.db = database or Database()
         
-        # Initialize TradingHub and specialized agents (Phase 7)
-        self.use_new_architecture = os.getenv("USE_NEW_ARCHITECTURE", "false").lower() == "true"
-        if self.use_new_architecture:
-            self.hub = TradingHub()
-            self.research_agent = ResearchAgent(self.hub)
-            self.trading_agent = TradingAgent(self.hub)
-            logger.info("Initialized with new TradingHub architecture")
-        else:
-            self.hub = None
-            self.research_agent = None
-            self.trading_agent = None
-            logger.info("Using legacy architecture")
+        # Initialize TradingHub and specialized agents (OpenClaw architecture)
+        self.hub = TradingHub()
+        self.research_agent = ResearchAgent(self.hub)
+        self.trading_agent = TradingAgent(self.hub)
+        logger.info("Initialized with OpenClaw TradingHub architecture")
         
         self.state = AgentState.STOPPED
         self.last_run: Optional[datetime] = None
@@ -86,12 +79,8 @@ class AgentRunner:
             "last_error": self.last_error,
             "total_forecasts": len(forecasts),
             "total_trades": len(trades),
-            "architecture": "new" if self.use_new_architecture else "legacy",
+            "hub_status": self.hub.get_status(),
         }
-        
-        # Add hub status if using new architecture
-        if self.use_new_architecture and self.hub:
-            status["hub_status"] = self.hub.get_status()
         
         return status
     
@@ -104,19 +93,14 @@ class AgentRunner:
         cycle_start = datetime.utcnow()
         
         try:
-            logger.info(f"Starting agent cycle... (architecture: {'new' if self.use_new_architecture else 'legacy'})")
+            logger.info("Starting agent cycle with OpenClaw architecture...")
             
-            # Choose architecture
-            if self.use_new_architecture:
-                # Use new TradingHub-based architecture
-                await self.trader.one_best_trade_v2(
-                    hub=self.hub,
-                    research_agent=self.research_agent,
-                    trading_agent=self.trading_agent
-                )
-            else:
-                # Use legacy architecture
-                self.trader.one_best_trade()
+            # Use OpenClaw TradingHub architecture
+            await self.trader.one_best_trade(
+                hub=self.hub,
+                research_agent=self.research_agent,
+                trading_agent=self.trading_agent
+            )
             
             self.run_count += 1
             self.last_run = cycle_start
@@ -196,10 +180,9 @@ class AgentRunner:
             logger.warning("Agent is already running")
             return
         
-        # Start TradingHub if using new architecture
-        if self.use_new_architecture and self.hub:
-            await self.hub.start()
-            logger.info("TradingHub started")
+        # Start TradingHub
+        await self.hub.start()
+        logger.info("TradingHub started")
         
         self.state = AgentState.RUNNING
         # Set next_run time immediately (agent will wait for interval before first execution)
@@ -220,10 +203,9 @@ class AgentRunner:
         was_paused = self.state == AgentState.PAUSED
         self.state = AgentState.STOPPED
         
-        # Stop TradingHub if using new architecture
-        if self.use_new_architecture and self.hub:
-            await self.hub.stop()
-            logger.info("TradingHub stopped")
+        # Stop TradingHub
+        await self.hub.stop()
+        logger.info("TradingHub stopped")
         
         # Emit status change event
         await self._emit_status_changed()

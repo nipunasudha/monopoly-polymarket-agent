@@ -40,32 +40,52 @@ Based on the open-source [Polymarket Agents](https://github.com/polymarket/agent
 
 ## Architecture
 
+**Built on OpenClaw Architecture (v2.0)**
+
+The Monopoly Agent uses a sophisticated multi-agent architecture with lane-based concurrency for optimal performance. For complete architecture documentation, see [`ARCHITECTURE.md`](../ARCHITECTURE.md).
+
+###Quick Overview
+
 ```
-┌─────────────────────────────────────────────────────┐
-│              USER INTERFACES                         │
-├──────────────────────┬──────────────────────────────┤
-│  CLI (Typer)         │  REST API (FastAPI)           │
-│  9 Commands          │  Health checks, Market data   │
-└──────────────────────┼──────────────────────────────┘
-                       │
-┌──────────────────────┴──────────────────────────────┐
-│           AGENT EXECUTION LAYER (Executor)           │
-├─────────────────────────────────────────────────────┤
-│  - LLM Coordination (OpenAI)      - RAG (Chroma)    │
-│  - Market Filtering                - Event Analysis │
-│  - Trade Calculation                                 │
-└──────────────────┬──────────────────────────────────┘
-                   │
-       ┌───────────┼───────────┐
-       │           │           │
-   ┌───▼──┐  ┌───▼────┐  ┌───▼────┐
-   │Gamma │  │Data    │  │Trading │
-   │API   │  │Sources │  │CLOB    │
-   └──────┘  └────────┘  └────────┘
-       │           │           │
-   Markets,    News, Web    Polygon
-   Events      Search        Network
+┌──────────────────────────────────────────────────────────────┐
+│                        AgentRunner                            │
+│  Manages lifecycle, scheduling, and background execution     │
+└────────────┬─────────────────────────────────────┬───────────┘
+             │                                     │
+             ▼                                     ▼
+    ┌────────────────┐                   ┌─────────────────┐
+    │     Trader     │                   │   TradingHub    │
+    │  Main logic    │                   │  Task manager   │
+    └────────┬───────┘                   └────────┬────────┘
+             │                                    │
+             │         ┌──────────────────────────┘
+             │         │                         │
+             ▼         ▼                         ▼
+    ┌────────────────────┐          ┌──────────────────────┐
+    │  ResearchAgent     │          │   TradingAgent       │
+    │  Parallel Research │          │   Trade Decisions    │
+    │  (3 concurrent)    │          │   (Sequential)       │
+    └────────────────────┘          └──────────────────────┘
 ```
+
+### Key Features
+
+- **Lane-Based Concurrency**: MAIN (sequential), RESEARCH (3 parallel), MONITOR (2 parallel), CRON (sequential)
+- **Specialized Agents**: ResearchAgent for market analysis, TradingAgent for decision-making
+- **Human-in-the-Loop**: Approval workflow for high-risk trades
+- **Real-time Observability**: WebSocket status updates, structured logging, performance metrics
+- **Claude SDK**: Direct Anthropic API integration (no LangChain dependency for LLM calls)
+- **RAG-Enhanced**: ChromaDB vector store for intelligent market filtering
+
+### Technology Stack
+
+- **Python 3.9+** with asyncio for concurrency
+- **FastAPI** for REST API and WebSocket support
+- **Anthropic Claude** (Sonnet 4) via Claude SDK
+- **ChromaDB** for vector embeddings and RAG
+- **SQLite** for local persistence
+- **Exa + Tavily** for web search
+- **structlog** for structured logging
 
 ## Key Files
 
