@@ -14,9 +14,16 @@ from dotenv import load_dotenv
 from agents.core.session import Lane, Session, Task
 from agents.core.tools import ToolRegistry
 
-load_dotenv()
+# Phase 8: Structured logging
+try:
+    from agents.core.structured_logging import get_logger, PerformanceMetrics
+    logger = get_logger(__name__)
+    USE_STRUCTLOG = True
+except ImportError:
+    logger = logging.getLogger(__name__)
+    USE_STRUCTLOG = False
 
-logger = logging.getLogger(__name__)
+load_dotenv()
 
 
 class TradingHub:
@@ -84,6 +91,12 @@ class TradingHub:
             "sessions_cleaned": 0,
             "results_cleaned": 0,
         }
+        
+        # Phase 8: Performance metrics
+        if USE_STRUCTLOG:
+            self.metrics = PerformanceMetrics(logger)
+        else:
+            self.metrics = None
     
     async def start(self):
         """Start the background task processor."""
@@ -132,6 +145,12 @@ class TradingHub:
             lane_queue.append(task)
         
         self.stats["tasks_enqueued"] += 1
+        
+        # Phase 8: Record queue metrics
+        if self.metrics:
+            self.metrics.increment("tasks_enqueued", 1, lane=task.lane.value)
+            self.metrics.record("queue_size", len(lane_queue), lane=task.lane.value)
+        
         return task.id
     
     async def enqueue_and_wait(self, task: Task, timeout: Optional[float] = None) -> Any:
@@ -214,6 +233,9 @@ class TradingHub:
             task: Task to execute
             lane: Lane the task belongs to
         """
+        # Phase 8: Track execution time
+        start_time = time.time()
+        
         try:
             # Get or create session
             if task.session_id:
@@ -246,11 +268,34 @@ class TradingHub:
             self.task_result_timestamps[task.id] = time.time()
             self.stats["tasks_completed"] += 1
             
+            # Phase 8: Record performance metrics
+            duration_ms = (time.time() - start_time) * 1000
+            if self.metrics:
+                self.metrics.timing(
+                    "task_execution",
+                    duration_ms,
+                    task_id=task.id,
+                    lane=lane.value,
+                    success=True
+                )
+            
         except Exception as e:
             logger.error(f"Task {task.id} failed: {e}", exc_info=True)
             self.task_results[task.id] = e
             self.task_result_timestamps[task.id] = time.time()
             self.stats["tasks_failed"] += 1
+            
+            # Phase 8: Record failure metrics
+            duration_ms = (time.time() - start_time) * 1000
+            if self.metrics:
+                self.metrics.timing(
+                    "task_execution",
+                    duration_ms,
+                    task_id=task.id,
+                    lane=lane.value,
+                    success=False,
+                    error=str(e)
+                )
         finally:
             # Remove from active tasks
             self.active_tasks[lane].discard(task.id)
@@ -422,7 +467,7 @@ class TradingHub:
     
     def get_status(self) -> Dict[str, Any]:
         """Get hub status information."""
-        return {
+        status = {
             "running": self._running,
             "sessions": len(self.sessions),
             "lane_status": {
@@ -436,3 +481,9 @@ class TradingHub:
             "stats": self.stats.copy(),
             "pending_results": len(self.task_results)
         }
+        
+        # Phase 8: Add performance metrics
+        if self.metrics:
+            status["metrics"] = self.metrics.get_all()
+        
+        return status

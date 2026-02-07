@@ -88,6 +88,7 @@ agent_runner = AgentRunner(approval_manager=approval_manager)
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self.hub_broadcast_task = None
     
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -112,6 +113,48 @@ class ConnectionManager:
         # Clean up dead connections
         for conn in dead_connections:
             self.disconnect(conn)
+    
+    async def broadcast_hub_status_periodically(self):
+        """Background task to broadcast hub status every 2 seconds (Phase 8)."""
+        import asyncio
+        while True:
+            try:
+                await asyncio.sleep(2)
+                
+                if len(self.active_connections) == 0:
+                    continue
+                
+                # Get runner status
+                runner_status = agent_runner.get_status()
+                
+                if runner_status.get("architecture") == "new":
+                    hub_status = runner_status.get("hub_status", {})
+                    await self.broadcast({
+                        "type": "hub_status_update",
+                        "data": hub_status,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            except Exception as e:
+                logger.error(f"Error in hub status broadcast: {e}")
+                await asyncio.sleep(2)
+    
+    def start_hub_broadcast(self):
+        """Start the background hub status broadcast task."""
+        import asyncio
+        if self.hub_broadcast_task is None:
+            self.hub_broadcast_task = asyncio.create_task(self.broadcast_hub_status_periodically())
+            logger.info("Hub status broadcast task started")
+    
+    async def stop_hub_broadcast(self):
+        """Stop the background hub status broadcast task."""
+        if self.hub_broadcast_task:
+            self.hub_broadcast_task.cancel()
+            try:
+                await self.hub_broadcast_task
+            except asyncio.CancelledError:
+                pass
+            self.hub_broadcast_task = None
+            logger.info("Hub status broadcast task stopped")
 
 ws_manager = ConnectionManager()
 
@@ -126,6 +169,9 @@ async def startup_event():
     
     # Connect broadcaster to WebSocket manager
     broadcaster.set_ws_manager(ws_manager)
+    
+    # Start hub status broadcast task (Phase 8)
+    ws_manager.start_hub_broadcast()
 
 
 @app.on_event("shutdown")
@@ -134,6 +180,9 @@ async def shutdown_event():
     logger.info("=" * 60)
     logger.info("Application shutdown initiated")
     logger.info("=" * 60)
+    
+    # Stop hub broadcast task (Phase 8)
+    await ws_manager.stop_hub_broadcast()
     
     # Stop agent runner
     if agent_runner.state.value == "running":
@@ -685,6 +734,31 @@ async def websocket_endpoint(websocket: WebSocket):
                     "type": "pong",
                     "timestamp": datetime.utcnow().isoformat()
                 })
+            
+            elif action == "get_hub_status":
+                # Phase 8: Real-time hub status via WebSocket
+                runner_status = agent_runner.get_status()
+                if runner_status.get("architecture") == "new":
+                    hub_status = runner_status.get("hub_status", {})
+                    await websocket.send_json({
+                        "type": "hub_status",
+                        "data": hub_status,
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+                else:
+                    await websocket.send_json({
+                        "type": "hub_status",
+                        "data": {"status": "not_available", "architecture": "legacy"},
+                        "timestamp": datetime.utcnow().isoformat()
+                    })
+            
+            elif action == "subscribe_hub":
+                # Phase 8: Subscribe to hub status updates (every 2 seconds)
+                # This is handled by the background task below
+                await websocket.send_json({
+                    "type": "hub_subscription_started",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
     
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
@@ -1213,6 +1287,70 @@ async def reject_trade(trade_id: str):
 async def get_approval_stats():
     """Get approval statistics."""
     return approval_manager.get_stats()
+
+
+# ============================================================================
+# Hub Status Endpoints (Phase 8)
+# ============================================================================
+
+@app.get("/api/hub/status")
+async def get_hub_status():
+    """Get TradingHub status (only available in new architecture)."""
+    try:
+        runner_status = agent_runner.get_status()
+        
+        if runner_status.get("architecture") != "new":
+            return {
+                "status": "not_available",
+                "message": "Hub status only available in new architecture. Set USE_NEW_ARCHITECTURE=true",
+                "architecture": "legacy"
+            }
+        
+        hub_status = runner_status.get("hub_status", {})
+        return {
+            "status": "available",
+            "architecture": "new",
+            "hub": hub_status
+        }
+    except Exception as e:
+        logger.error(f"Failed to get hub status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get hub status: {str(e)}"
+        )
+
+
+@app.get("/api/hub/stats")
+async def get_hub_stats():
+    """Get detailed TradingHub statistics."""
+    try:
+        runner_status = agent_runner.get_status()
+        
+        if runner_status.get("architecture") != "new":
+            return {
+                "status": "not_available",
+                "message": "Hub stats only available in new architecture",
+                "architecture": "legacy"
+            }
+        
+        hub_status = runner_status.get("hub_status", {})
+        stats = hub_status.get("stats", {})
+        
+        return {
+            "status": "available",
+            "architecture": "new",
+            "stats": stats,
+            "sessions": hub_status.get("sessions", 0),
+            "queued_tasks": hub_status.get("queued_tasks", 0),
+            "active_tasks": hub_status.get("active_tasks", 0),
+            "lanes": hub_status.get("lanes", {})
+        }
+    except Exception as e:
+        logger.error(f"Failed to get hub stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get hub stats: {str(e)}"
+        )
 
 
 @app.post("/api/sync/balance")
