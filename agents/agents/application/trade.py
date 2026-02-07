@@ -1,20 +1,24 @@
 # Monopoly Polymarket Agent System — metarunelabs.dev
 import os
+import asyncio
+from typing import Optional
 from agents.application.executor import Executor as Agent
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.polymarket.polymarket import Polymarket
 from agents.connectors.database import Database
+from agents.core.approvals import ApprovalManager
 
 import shutil
 
 
 class Trader:
-    def __init__(self):
+    def __init__(self, approval_manager: Optional[ApprovalManager] = None):
         self.dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
         self.polymarket = Polymarket()
         self.gamma = Gamma()
         self.agent = Agent()
         self.db = Database()  # Add database connection
+        self.approval_manager = approval_manager
 
     def pre_trade_logic(self) -> None:
         self.clear_local_dbs()
@@ -172,6 +176,45 @@ class Trader:
                 saved_trade = self.db.save_trade(trade_data)
                 print(f"   Saved trade ID: {saved_trade.id}")
             else:
+                # Request approval for large trades if approval manager is configured
+                approved = True
+                if self.approval_manager:
+                    # Generate trade ID
+                    import uuid
+                    trade_id = str(uuid.uuid4())
+                    trade_data["trade_id"] = trade_id
+                    
+                    # Calculate size as fraction of balance for threshold check
+                    try:
+                        balance = self.polymarket.get_usdc_balance()
+                        size_fraction = amount / balance if balance > 0 else 0
+                        trade_data["size_fraction"] = size_fraction
+                    except Exception as e:
+                        print(f"[WARNING] Could not get balance for approval check: {e}")
+                        size_fraction = 0
+                    
+                    # Request approval (this will block if needed)
+                    try:
+                        # Run async approval in sync context
+                        approved = asyncio.run(
+                            self.approval_manager.request_approval(
+                                trade_id=trade_id,
+                                trade_data=trade_data,
+                                timeout=300
+                            )
+                        )
+                    except Exception as e:
+                        print(f"[ERROR] Approval request failed: {e}")
+                        approved = False
+                    
+                    if not approved:
+                        print("[REJECTED] Trade rejected by operator or timed out")
+                        trade_data["status"] = "rejected"
+                        saved_trade = self.db.save_trade(trade_data)
+                        print(f"   Saved rejected trade ID: {saved_trade.id}")
+                        return
+                
+                # Execute trade if approved
                 # Please refer to TOS before enabling: polymarket.com/tos
                 trade = self.polymarket.execute_market_order(market, amount)
                 print(f"6. TRADED {trade}")

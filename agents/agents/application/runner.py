@@ -29,15 +29,17 @@ class AgentRunner:
         self,
         interval_minutes: int = 60,
         database: Optional[Database] = None,
+        approval_manager: Optional[Any] = None,
     ):
         """Initialize agent runner.
         
         Args:
             interval_minutes: Minutes between agent runs (default: 60)
             database: Database instance for logging
+            approval_manager: Optional ApprovalManager instance
         """
         self.interval_minutes = interval_minutes
-        self.trader = Trader()
+        self.trader = Trader(approval_manager=approval_manager)
         self.db = database or Database()
         
         self.state = AgentState.STOPPED

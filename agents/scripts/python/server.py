@@ -8,12 +8,14 @@ from datetime import datetime
 import logging
 import json
 import httpx
+import time
 
 from agents.connectors.database import Database
 from agents.application.runner import get_agent_runner
 from agents.connectors.events import get_broadcaster
 from agents.polymarket.polymarket import Polymarket
 from agents.connectors.news import News
+from agents.core.approvals import ApprovalManager
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -59,11 +61,27 @@ poly = Polymarket()
 # Initialize News client
 news_client = News()
 
-# Initialize agent runner
-agent_runner = get_agent_runner()
+# Initialize agent runner (will be updated with approval_manager after it's created)
+agent_runner = None  # Will be initialized below after approval_manager
 
 # Initialize event broadcaster
 broadcaster = get_broadcaster()
+
+# Initialize approval manager
+async def broadcast_approval_event(message: dict):
+    """Broadcast approval events via WebSocket."""
+    await ws_manager.broadcast(message)
+
+approval_manager = ApprovalManager(
+    auto_approve_threshold=0.05,  # Auto-approve trades < 5% of balance
+    default_timeout=300,  # 5 minutes default timeout
+    websocket_broadcaster=broadcast_approval_event
+)
+
+# Initialize agent runner with approval manager
+from agents.application.runner import AgentRunner
+# Create agent runner with approval manager
+agent_runner = AgentRunner(approval_manager=approval_manager)
 
 
 # WebSocket connection manager
@@ -1133,6 +1151,70 @@ def analyze_market(market_id: str):
 
 
 # Polymarket sync endpoint
+@app.get("/api/approvals/pending")
+async def get_pending_approvals():
+    """Get all pending approval requests."""
+    return approval_manager.get_pending()
+
+
+@app.get("/api/approvals/{trade_id}")
+async def get_approval_status(trade_id: str):
+    """Get status of a specific approval request."""
+    status = approval_manager.get_status(trade_id)
+    if not status:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Approval request {trade_id} not found"
+        )
+    return status
+
+
+@app.post("/api/approvals/{trade_id}/approve")
+async def approve_trade(trade_id: str):
+    """Approve a pending trade."""
+    success = approval_manager.approve(trade_id)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Trade {trade_id} not found or already processed"
+        )
+    
+    # Broadcast approval event
+    await ws_manager.broadcast({
+        "type": "approval_approved",
+        "trade_id": trade_id,
+        "timestamp": time.time()
+    })
+    
+    return {"status": "approved", "trade_id": trade_id}
+
+
+@app.post("/api/approvals/{trade_id}/reject")
+async def reject_trade(trade_id: str):
+    """Reject a pending trade."""
+    success = approval_manager.reject(trade_id)
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Trade {trade_id} not found or already processed"
+        )
+    
+    # Broadcast rejection event
+    await ws_manager.broadcast({
+        "type": "approval_rejected",
+        "trade_id": trade_id,
+        "timestamp": time.time()
+    })
+    
+    return {"status": "rejected", "trade_id": trade_id}
+
+
+@app.get("/api/approvals/stats")
+async def get_approval_stats():
+    """Get approval statistics."""
+    return approval_manager.get_stats()
+
+
 @app.post("/api/sync/balance")
 def sync_balance():
     """Sync USDC balance from Polymarket."""

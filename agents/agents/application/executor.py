@@ -8,8 +8,7 @@ from typing import List, Dict, Any
 import math
 
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_anthropic import ChatAnthropic
+from anthropic import Anthropic
 
 from agents.polymarket.gamma import GammaMarketClient as Gamma
 from agents.connectors.chroma import PolymarketRAG as Chroma
@@ -38,13 +37,11 @@ class Executor:
         
         # Skip LLM initialization in dry_run mode
         if not self.dry_run:
-            self.llm = ChatAnthropic(
-                model=default_model,
-                temperature=0,
-                api_key=os.getenv("ANTHROPIC_API_KEY"),
-            )
+            self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            self.model = default_model
         else:
-            self.llm = None
+            self.client = None
+            self.model = default_model
             print("[DRY RUN] Executor initialized in fast mode (no LLM calls)")
         
         self.gamma = Gamma()
@@ -52,13 +49,16 @@ class Executor:
         self.polymarket = Polymarket()
 
     def get_llm_response(self, user_input: str) -> str:
-        if self.dry_run:
+        if self.dry_run or self.client is None:
             return "Mock LLM response: This market shows interesting opportunity based on recent trends."
-        system_message = SystemMessage(content=str(self.prompter.market_analyst()))
-        human_message = HumanMessage(content=user_input)
-        messages = [system_message, human_message]
-        result = self.llm.invoke(messages)
-        return result.content
+        system_prompt = str(self.prompter.market_analyst())
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_input}]
+        )
+        return response.content[0].text
 
     def get_superforecast(
         self, event_title: str, market_question: str, outcome: str
@@ -89,11 +89,17 @@ class Executor:
             reasoning = random.choice(reasoning_templates)
             
             return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability (confidence: {confidence:.1%}) for {outcome}. {reasoning}"
-        messages = self.prompter.superforecaster(
-            description=event_title, question=market_question, outcome=outcome
+        if self.dry_run or self.client is None:
+            return f"[DRY RUN] Mock forecast: I estimate a {prob:.1%} probability (confidence: {confidence:.1%}) for {outcome}. {reasoning}"
+        prompt = self.prompter.superforecaster(
+            question=market_question, description=event_title, outcome=outcome
         )
-        result = self.llm.invoke(messages)
-        return result.content
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text
 
 
     def estimate_tokens(self, text: str) -> int:
@@ -101,13 +107,16 @@ class Executor:
         return len(text) // 4  # Assuming average of 4 characters per token
 
     def process_data_chunk(self, data1: List[Dict[Any, Any]], data2: List[Dict[Any, Any]], user_input: str) -> str:
-        system_message = SystemMessage(
-            content=str(self.prompter.prompts_polymarket(data1=data1, data2=data2))
+        if self.dry_run or self.client is None:
+            return "Mock response: Market analysis based on provided data."
+        system_prompt = str(self.prompter.prompts_polymarket(data1=data1, data2=data2))
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_input}]
         )
-        human_message = HumanMessage(content=user_input)
-        messages = [system_message, human_message]
-        result = self.llm.invoke(messages)
-        return result.content
+        return response.content[0].text
 
 
     def divide_list(self, original_list, i):
@@ -159,9 +168,18 @@ class Executor:
             
             return combined_result
     def filter_events(self, events: "list[SimpleEvent]") -> str:
-        prompt = self.prompter.filter_events(events)
-        result = self.llm.invoke(prompt)
-        return result.content
+        if self.dry_run or self.client is None:
+            return "Mock filtered events response."
+        prompt = self.prompter.filter_events()
+        # Convert events to string format for prompt
+        events_str = str(events)
+        full_prompt = f"{prompt}\n\nEvents to filter:\n{events_str}"
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": full_prompt}]
+        )
+        return response.content[0].text
 
     def filter_events_with_rag(self, events: "list[SimpleEvent]") -> "list[tuple]":
         """Filter events using RAG (Retrieval Augmented Generation).
@@ -414,20 +432,32 @@ class Executor:
         question = market["question"]
         description = market_document["page_content"]
 
-        prompt = self.prompter.superforecaster(question, description, outcomes)
+        if self.dry_run or self.client is None:
+            # This should have been handled earlier, but add safety check
+            raise ValueError("source_best_trade called in dry_run mode - should use mock path")
+        
+        prompt = self.prompter.superforecaster(question, description, outcomes[0] if outcomes else "Yes")
         print()
         print("... prompting ... ", prompt)
         print()
-        result = self.llm.invoke(prompt)
-        content = result.content
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = response.content[0].text
 
         print("result: ", content)
         print()
         prompt = self.prompter.one_best_trade(content, outcomes, outcome_prices)
         print("... prompting ... ", prompt)
         print()
-        result = self.llm.invoke(prompt)
-        content = result.content
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = response.content[0].text
 
         print("result: ", content)
         print()
@@ -443,10 +473,16 @@ class Executor:
         return size * usdc_balance
 
     def source_best_market_to_create(self, filtered_markets) -> str:
+        if self.dry_run or self.client is None:
+            return "Mock market creation response."
         prompt = self.prompter.create_new_market(filtered_markets)
         print()
         print("... prompting ... ", prompt)
         print()
-        result = self.llm.invoke(prompt)
-        content = result.content
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = response.content[0].text
         return content
