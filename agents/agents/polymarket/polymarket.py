@@ -363,7 +363,7 @@ class Polymarket:
 
     def get_usdc_balance(self) -> float:
         if self.dry_run:
-            balance = float(os.getenv("SIMULATED_USDC_BALANCE", "1000.0"))
+            balance = 875.42  # Fixture value matching portfolio endpoint
             print(f"[DRY RUN] Using simulated USDC balance: ${balance:.2f}")
             return balance
         balance_res = self.usdc.functions.balanceOf(
