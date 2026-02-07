@@ -687,10 +687,25 @@ def get_trade(trade_id: int):
 # Portfolio endpoints
 @app.get("/api/portfolio", response_model=PortfolioResponse)
 def get_portfolio():
-    """Get current portfolio state."""
+    """Get current portfolio state (with fixture data in dry_run mode)."""
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    
     snapshot = db.get_latest_portfolio_snapshot()
+    
+    # If no real data exists or snapshot has all zeros, use fixture data in dry_run mode
+    if dry_run and (not snapshot or (snapshot.balance == 0 and snapshot.total_trades == 0)):
+        return PortfolioResponse(
+            balance=875.42,
+            total_value=1243.67,
+            open_positions=3,
+            total_pnl=368.25,
+            win_rate=0.667,
+            total_trades=12,
+            created_at=datetime.utcnow().isoformat(),
+        )
+    
+    # If no data exists, return zeros
     if not snapshot:
-        # Return default portfolio if none exists
         return PortfolioResponse(
             balance=0.0,
             total_value=0.0,
@@ -700,6 +715,8 @@ def get_portfolio():
             total_trades=0,
             created_at=datetime.utcnow().isoformat(),
         )
+    
+    # Return real data
     return PortfolioResponse(
         balance=snapshot.balance,
         total_value=snapshot.total_value,
@@ -713,8 +730,37 @@ def get_portfolio():
 
 @app.get("/api/portfolio/history", response_model=List[PortfolioResponse])
 def get_portfolio_history(limit: int = 30):
-    """Get portfolio history."""
+    """Get portfolio history (with fixture data in dry_run mode)."""
+    dry_run = os.getenv("TRADING_MODE", "dry_run").lower() != "live"
+    
     snapshots = db.get_portfolio_history(limit=limit)
+    
+    # If no data and in dry_run mode, return fixture history
+    if not snapshots and dry_run:
+        from datetime import timedelta
+        now = datetime.utcnow()
+        fixture_history = []
+        
+        # Generate 10 days of fixture data showing growth
+        for i in range(10):
+            days_ago = 9 - i
+            balance = 500.0 + (i * 37.5)  # Growing from 500 to 837.5
+            pnl = balance - 500.0
+            trades = i + 1
+            win_rate = 0.6 + (i * 0.007)  # Improving from 0.6 to 0.667
+            
+            fixture_history.append(PortfolioResponse(
+                balance=balance,
+                total_value=balance + (i * 40),  # Additional value from positions
+                open_positions=min(i // 2, 3),
+                total_pnl=pnl,
+                win_rate=win_rate if trades > 0 else None,
+                total_trades=trades,
+                created_at=(now - timedelta(days=days_ago)).isoformat(),
+            ))
+        
+        return fixture_history
+    
     return [
         PortfolioResponse(
             balance=s.balance,
