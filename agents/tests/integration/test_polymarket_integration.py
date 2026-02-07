@@ -5,6 +5,7 @@ Verifies we can fetch real data from Polymarket.
 import pytest
 from agents.polymarket.polymarket import Polymarket
 from agents.connectors.database import Database
+from scripts.python.server import db as global_db
 
 
 class TestPolymarketIntegration:
@@ -248,7 +249,8 @@ class TestPolymarketEndToEnd:
     def test_full_pipeline(self, client, setup_test_db):
         """Test complete flow: Polymarket → DB → API → UI."""
         poly = Polymarket()
-        db = Database()
+        # Use the global db instance that setup_test_db configured
+        db = global_db
         
         # 1. Fetch from Polymarket
         markets = poly.get_all_markets()
