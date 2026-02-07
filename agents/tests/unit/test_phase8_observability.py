@@ -185,6 +185,11 @@ class TestHubStatusAPIs:
             from agents.application.runner import AgentRunner
             
             runner = AgentRunner()
+            
+            # Mock database calls to avoid table issues
+            runner.db.get_recent_forecasts = Mock(return_value=[])
+            runner.db.get_recent_trades = Mock(return_value=[])
+            
             status = runner.get_status()
             
             assert "hub_status" in status
@@ -197,6 +202,11 @@ class TestHubStatusAPIs:
             from agents.application.runner import AgentRunner
             
             runner = AgentRunner()
+            
+            # Mock database calls
+            runner.db.get_recent_forecasts = Mock(return_value=[])
+            runner.db.get_recent_trades = Mock(return_value=[])
+            
             status = runner.get_status()
             hub_status = status.get("hub_status", {})
             

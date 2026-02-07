@@ -86,6 +86,7 @@ class TestTavilySearch:
 
 
 @pytest.mark.integration
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4")
 class TestSearchIntegrationWithExecutor:
     """Test search integration with Executor."""
 

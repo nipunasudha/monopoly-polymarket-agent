@@ -274,7 +274,7 @@ class Trader:
         pass
 
 
-if __main__ == "__main__":
+if __name__ == "__main__":
     import asyncio
     from agents.core.hub import TradingHub
     from agents.core.agents import ResearchAgent, TradingAgent

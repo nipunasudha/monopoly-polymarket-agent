@@ -1,6 +1,9 @@
 """
 Integration tests for Executor class.
-Tests LLM integration with mocked responses to avoid API costs.
+
+NOTE: These tests reference the old LangChain-based executor (ChatAnthropic).
+The executor was migrated to Claude SDK in Phase 4.
+New executor tests are in test_executor_claude_sdk.py.
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
@@ -8,6 +11,7 @@ from agents.application.executor import Executor
 import json
 
 
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4. See test_executor_claude_sdk.py")
 @pytest.mark.integration
 class TestExecutorLLMIntegration:
     """Test Executor with mocked LLM calls."""
@@ -115,6 +119,7 @@ class TestExecutorLLMIntegration:
         assert set(flattened) == set(original)
 
 
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4. See test_executor_claude_sdk.py")
 @pytest.mark.integration
 class TestExecutorMarketFiltering:
     """Test market filtering with mocked components."""
@@ -171,6 +176,7 @@ class TestExecutorMarketFiltering:
         mock_chroma.events.assert_called_once()
 
 
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4. See test_executor_claude_sdk.py")
 @pytest.mark.integration
 class TestExecutorDataChunking:
     """Test data chunking for large datasets."""
@@ -222,6 +228,7 @@ class TestExecutorDataChunking:
             assert len(chunk) == 25
 
 
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4. See test_executor_claude_sdk.py")
 @pytest.mark.integration
 class TestExecutorSourceBestTrade:
     """Test sourcing best trade with mocked components."""

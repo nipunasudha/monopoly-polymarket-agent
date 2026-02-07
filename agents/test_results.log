@@ -1,0 +1,10 @@
+ImportError while loading conftest '/Users/nipuna/paragon/claude-projects/monopoly/agents/tests/conftest.py'.
+tests/conftest.py:10: in <module>
+    from scripts.python.server import app, db
+scripts/python/server.py:14: in <module>
+    from agents.application.runner import get_agent_runner
+agents/application/runner.py:12: in <module>
+    from agents.application.trade import Trader
+agents/application/trade.py:277: in <module>
+    if __main__ == "__main__":
+E   NameError: name '__main__' is not defined

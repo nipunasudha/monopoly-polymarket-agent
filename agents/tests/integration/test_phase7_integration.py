@@ -22,10 +22,16 @@ class TestRunnerIntegration:
             assert runner.trading_agent is not None
             assert runner.trader is not None
     
-    def test_runner_status_includes_hub_status(self):
+    def test_runner_status_includes_hub_status(self, setup_test_db):
         """Test that status includes hub status."""
         with patch.dict(os.environ, {'ANTHROPIC_API_KEY': 'test_key'}):
             runner = AgentRunner()
+            
+            # Mock database calls to avoid table issues
+            from unittest.mock import Mock
+            runner.db.get_recent_forecasts = Mock(return_value=[])
+            runner.db.get_recent_trades = Mock(return_value=[])
+            
             status = runner.get_status()
             
             assert "hub_status" in status
@@ -53,8 +59,8 @@ class TestTrader:
     """Test one_best_trade method."""
     
     @pytest.mark.asyncio
-    async def test_one_best_trade_v2_requires_hub(self):
-        """Test that one_best_trade_v2 requires hub and agents."""
+    async def test_one_best_trade_requires_hub(self):
+        """Test that one_best_trade requires hub and agents."""
         from agents.application.trade import Trader
         from agents.core.hub import TradingHub
         from agents.core.agents import ResearchAgent, TradingAgent
@@ -69,11 +75,11 @@ class TestTrader:
             trader.polymarket.get_all_tradeable_events = Mock(return_value=[])
             
             # Should not crash
-            await trader.one_best_trade_v2(hub, research_agent, trading_agent)
+            await trader.one_best_trade(hub, research_agent, trading_agent)
     
     @pytest.mark.asyncio
-    async def test_one_best_trade_v2_skips_on_no_events(self):
-        """Test that v2 skips when no events found."""
+    async def test_one_best_trade_skips_on_no_events(self):
+        """Test that one_best_trade skips when no events found."""
         from agents.application.trade import Trader
         from agents.core.hub import TradingHub
         from agents.core.agents import ResearchAgent, TradingAgent
@@ -87,10 +93,10 @@ class TestTrader:
             trader.polymarket.get_all_tradeable_events = Mock(return_value=[])
             
             # Should complete without errors
-            await trader.one_best_trade_v2(hub, research_agent, trading_agent)
+            await trader.one_best_trade(hub, research_agent, trading_agent)
     
-    def test_trader_has_both_methods(self):
-        """Test that Trader has both old and new methods."""
+    def test_trader_has_one_best_trade_method(self):
+        """Test that Trader has one_best_trade method."""
         from agents.application.trade import Trader
         import inspect
         

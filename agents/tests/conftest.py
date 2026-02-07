@@ -5,7 +5,7 @@ import os
 import pytest
 import json
 from typing import Dict, Any
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, AsyncMock
 from fastapi.testclient import TestClient
 from scripts.python.server import app, db
 from agents.application.runner import get_agent_runner, AgentState
@@ -137,7 +137,8 @@ def mock_trader():
     """Mock Trader class to avoid LLM costs."""
     with patch("agents.application.runner.Trader") as mock:
         trader_instance = Mock()
-        trader_instance.one_best_trade = Mock()
+        # Mock the async one_best_trade method
+        trader_instance.one_best_trade = AsyncMock()
         mock.return_value = trader_instance
         yield trader_instance
 

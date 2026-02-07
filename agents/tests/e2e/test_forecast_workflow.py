@@ -1,12 +1,16 @@
 """
 End-to-end tests for forecast workflow.
-These tests use mocked external services to avoid costs.
+
+NOTE: These tests reference the old LangChain-based executor (ChatAnthropic).
+The executor was migrated to Claude SDK in Phase 4.
+New end-to-end tests using OpenClaw architecture are in test_phase7_integration.py.
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 import json
 
 
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4")
 @pytest.mark.e2e
 @pytest.mark.slow
 class TestForecastWorkflow:
@@ -138,6 +142,7 @@ class TestForecastWorkflow:
 
 
 @pytest.mark.e2e
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4")
 @pytest.mark.slow
 class TestTradeDecisionWorkflow:
     """Test complete trade decision workflow."""
@@ -226,6 +231,7 @@ class TestTradeDecisionWorkflow:
 
 
 @pytest.mark.e2e
+@pytest.mark.skip(reason="Tests old LangChain executor - migrated to Claude SDK in Phase 4")
 @pytest.mark.slow
 class TestErrorHandlingWorkflow:
     """Test error handling in complete workflows."""
